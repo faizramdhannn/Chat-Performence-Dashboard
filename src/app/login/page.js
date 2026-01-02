@@ -50,7 +50,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-[#164d6e] p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Chat Performance</h1>
+          <h1 className="text-3xl font-bold text-primary mb-2">Customer Service Torch</h1>
           <p className="text-gray-600">Dashboard System</p>
         </div>
 
