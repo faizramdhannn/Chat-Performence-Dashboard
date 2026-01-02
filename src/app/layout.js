@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
   title: 'Chat Performance Dashboard',
-  description: 'Dashboard untuk mengelola dan memantau performa chat customer service',
+  description: 'Dashboard Customer Service Torch',
 }
 
 export default function RootLayout({ children }) {
