@@ -60,12 +60,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4 text-sm">
-          <p className="font-semibold mb-1">🔑 Default Login:</p>
-          <p>Username: <strong>admin</strong></p>
-          <p>Password: <strong>admin123</strong></p>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="username" className="block text-sm font-semibold text-primary mb-2">
