@@ -1,15 +1,29 @@
 import { google } from 'googleapis';
-import path from 'path';
 
 class GoogleSheetsService {
   constructor() {
-    const credentialsPath = path.join(process.cwd(), 'credentials.json');
+    // For production (Vercel), use environment variable
+    // For local dev, use credentials.json file
+    let auth;
     
-    this.auth = new google.auth.GoogleAuth({
-      keyFile: credentialsPath,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
+    if (process.env.GOOGLE_CREDENTIALS) {
+      // Production - dari environment variable
+      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+      auth = new google.auth.GoogleAuth({
+        credentials: credentials,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      });
+    } else {
+      // Local development - dari file
+      const path = require('path');
+      const credentialsPath = path.join(process.cwd(), 'credentials.json');
+      auth = new google.auth.GoogleAuth({
+        keyFile: credentialsPath,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      });
+    }
     
+    this.auth = auth;
     this.sheets = google.sheets({ version: 'v4', auth: this.auth });
     this.spreadsheetId = process.env.SPREADSHEET_ID;
     this.sheetName = process.env.SHEET_NAME || 'Inbound Chat Performance';
