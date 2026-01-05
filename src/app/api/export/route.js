@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import googleSheets from '@/lib/googleSheets';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export async function POST(request) {
   const auth = await requireAuth();
@@ -39,43 +39,106 @@ export async function POST(request) {
       }
     }
 
-    // Remove rowIndex field
-    const exportData = data.map(({ rowIndex, ...rest }) => rest);
+    // Create pivot table data
+    const intentions = [...new Set(data.map(d => d.intention).filter(Boolean))].sort();
+    const channels = [...new Set(data.map(d => d.channel).filter(Boolean))].sort();
+
+    // Build pivot matrix
+    const pivotData = [];
+    
+    intentions.forEach(intention => {
+      const row = { 'By Intensi': intention };
+      let rowTotal = 0;
+      
+      channels.forEach(channel => {
+        const count = data.filter(d => d.intention === intention && d.channel === channel).length;
+        row[channel] = count;
+        rowTotal += count;
+      });
+      
+      row['TOTAL'] = rowTotal;
+      pivotData.push(row);
+    });
+
+    // Add column totals
+    const totalRow = { 'By Intensi': 'TOTAL' };
+    let grandTotal = 0;
+    
+    channels.forEach(channel => {
+      const total = data.filter(d => d.channel === channel).length;
+      totalRow[channel] = total;
+      grandTotal += total;
+    });
+    totalRow['TOTAL'] = grandTotal;
+    pivotData.push(totalRow);
 
     // Create workbook
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Pivot Table');
+
+    // Add headers
+    const headers = ['By Intensi', ...channels, 'TOTAL'];
+    worksheet.addRow(headers);
+
+    // Style header
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF2C4F5E' }
+    };
+    worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Add data rows
+    pivotData.forEach((rowData, index) => {
+      const values = headers.map(h => rowData[h] || 0);
+      const row = worksheet.addRow(values);
+      
+      // Style total row
+      if (index === pivotData.length - 1) {
+        row.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFAFCC3C' }
+        };
+        row.font = { bold: true };
+      }
+      
+      // Style TOTAL column
+      row.getCell(headers.length).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFAFCC3C' }
+      };
+      row.getCell(headers.length).font = { bold: true };
+    });
 
     // Set column widths
-    worksheet['!cols'] = [
-      { wch: 15 }, // date
-      { wch: 12 }, // shift
-      { wch: 20 }, // cs
-      { wch: 15 }, // channel
-      { wch: 20 }, // name
-      { wch: 20 }, // cust
-      { wch: 15 }, // order_number
-      { wch: 15 }, // intention
-      { wch: 15 }, // case
-      { wch: 20 }, // product_name
-      { wch: 15 }, // closing_status
-      { wch: 30 }, // note
-      { wch: 15 }, // chat_status
-      { wch: 15 }, // chat_status2
-      { wch: 15 }, // follow_up
-      { wch: 10 }  // survey
-    ];
+    worksheet.getColumn(1).width = 30;
+    for (let i = 2; i <= headers.length; i++) {
+      worksheet.getColumn(i).width = 15;
+    }
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Chat Performance Data');
+    // Add borders
+    worksheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+    });
 
     // Generate buffer
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await workbook.xlsx.writeBuffer();
 
     // Return file
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Chat_Performance_Export_${new Date().toISOString().split('T')[0]}.xlsx"`
+        'Content-Disposition': `attachment; filename="Analytics_Pivot_${new Date().toISOString().split('T')[0]}.xlsx"`
       }
     });
 

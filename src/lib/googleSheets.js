@@ -4,13 +4,32 @@ import bcrypt from 'bcryptjs';
 
 class GoogleSheetsService {
   constructor() {
-    const credentialsPath = path.join(process.cwd(), 'credentials.json');
+    let auth;
     
-    this.auth = new google.auth.GoogleAuth({
-      keyFile: credentialsPath,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
+    // Check if GOOGLE_CREDENTIALS environment variable exists (for Vercel)
+    if (process.env.GOOGLE_CREDENTIALS) {
+      try {
+        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+        auth = new google.auth.GoogleAuth({
+          credentials: credentials,
+          scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        });
+        console.log('✅ Using GOOGLE_CREDENTIALS from environment variable');
+      } catch (error) {
+        console.error('❌ Failed to parse GOOGLE_CREDENTIALS:', error.message);
+        throw new Error('Invalid GOOGLE_CREDENTIALS format');
+      }
+    } else {
+      // Fall back to credentials.json file (for local development)
+      const credentialsPath = path.join(process.cwd(), 'credentials.json');
+      auth = new google.auth.GoogleAuth({
+        keyFile: credentialsPath,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      });
+      console.log('✅ Using credentials.json from file system');
+    }
     
+    this.auth = auth;
     this.sheets = google.sheets({ version: 'v4', auth: this.auth });
     this.spreadsheetId = process.env.SPREADSHEET_ID;
   }
@@ -114,143 +133,6 @@ class GoogleSheetsService {
       return await this.deleteRow(process.env.USERS_SHEET, rowIndex);
     } catch (error) {
       console.error('Error deleting user:', error);
-      throw error;
-    }
-  }
-
-  // ============ REGISTRATION MANAGEMENT ============
-  async getPendingRegistrations() {
-    try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
-      const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A:F`,
-      });
-
-      const rows = response.data.values;
-      if (!rows || rows.length === 0) {
-        return [];
-      }
-
-      const headers = rows[0];
-      return rows.slice(1)
-        .map((row, index) => {
-          const obj = { rowIndex: index + 2 };
-          headers.forEach((header, i) => {
-            obj[header] = row[i] || '';
-          });
-          return obj;
-        })
-        .filter(reg => reg.status === 'pending');
-    } catch (error) {
-      console.error('Error fetching registrations:', error);
-      // If sheet doesn't exist, return empty array
-      return [];
-    }
-  }
-
-  async createPendingRegistration(data) {
-    try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
-      
-      const values = [[
-        data.id,
-        data.username,
-        data.password,
-        data.name,
-        data.status,
-        data.requestedAt
-      ]];
-
-      const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A:F`,
-        valueInputOption: 'USER_ENTERED',
-        resource: { values },
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('Error creating registration:', error);
-      throw error;
-    }
-  }
-
-  async approveRegistration(registrationId, role) {
-    try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
-      const registrations = await this.getPendingRegistrations();
-      const registration = registrations.find(r => r.id === registrationId);
-
-      if (!registration) {
-        throw new Error('Registration not found');
-      }
-
-      // Create user in users sheet
-      await this.createUserFromRegistration(registration, role);
-
-      // Update registration status
-      const values = [[
-        registration.id,
-        registration.username,
-        registration.password,
-        registration.name,
-        'approved',
-        registration.requestedAt
-      ]];
-
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A${registration.rowIndex}:F${registration.rowIndex}`,
-        valueInputOption: 'USER_ENTERED',
-        resource: { values },
-      });
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error approving registration:', error);
-      throw error;
-    }
-  }
-
-  async createUserFromRegistration(registration, role) {
-    try {
-      const values = [[
-        registration.id,
-        registration.username,
-        registration.password, // Already hashed
-        role,
-        registration.name
-      ]];
-
-      const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:E`,
-        valueInputOption: 'USER_ENTERED',
-        resource: { values },
-      });
-
-      return response.data;
-    } catch (error) {
-      console.error('Error creating user from registration:', error);
-      throw error;
-    }
-  }
-
-  async rejectRegistration(registrationId) {
-    try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
-      const registrations = await this.getPendingRegistrations();
-      const registration = registrations.find(r => r.id === registrationId);
-
-      if (!registration) {
-        throw new Error('Registration not found');
-      }
-
-      // Delete the registration row
-      return await this.deleteRow(sheetName, registration.rowIndex);
-    } catch (error) {
-      console.error('Error rejecting registration:', error);
       throw error;
     }
   }
@@ -366,28 +248,6 @@ class GoogleSheetsService {
       const settings = await this.getSettings();
       const sheetName = settings.data_sheet || process.env.DATA_SHEET;
 
-      // Get all existing data to find first empty row
-      const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A:A`, // Only get column A to check for empty rows
-      });
-
-      const rows = response.data.values || [];
-      
-      // Find first empty row (skip header at row 1)
-      let targetRow = 2; // Start from row 2 (after header)
-      for (let i = 1; i < rows.length; i++) { // Start from index 1 (row 2)
-        if (!rows[i] || !rows[i][0] || rows[i][0].trim() === '') {
-          targetRow = i + 1; // +1 because array is 0-indexed but rows are 1-indexed
-          break;
-        }
-      }
-      
-      // If all rows have data, append at the end
-      if (targetRow === 2 && rows.length > 1) {
-        targetRow = rows.length + 1;
-      }
-
       const values = [[
         data.date || '',
         data.shift || '',
@@ -407,15 +267,14 @@ class GoogleSheetsService {
         data.survey || ''
       ]];
 
-      // Use update instead of append to write to specific row
-      const updateResponse = await this.sheets.spreadsheets.values.update({
+      const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A${targetRow}:P${targetRow}`,
+        range: `${sheetName}!A:P`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
 
-      return updateResponse.data;
+      return response.data;
     } catch (error) {
       console.error('Error adding data:', error);
       throw error;
