@@ -137,6 +137,143 @@ class GoogleSheetsService {
     }
   }
 
+  // ============ REGISTRATION MANAGEMENT ============
+  async getPendingRegistrations() {
+    try {
+      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A:F`,
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      return rows.slice(1)
+        .map((row, index) => {
+          const obj = { rowIndex: index + 2 };
+          headers.forEach((header, i) => {
+            obj[header] = row[i] || '';
+          });
+          return obj;
+        })
+        .filter(reg => reg.status === 'pending');
+    } catch (error) {
+      console.error('Error fetching registrations:', error);
+      // If sheet doesn't exist, return empty array
+      return [];
+    }
+  }
+
+  async createPendingRegistration(data) {
+    try {
+      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
+      
+      const values = [[
+        data.id,
+        data.username,
+        data.password,
+        data.name,
+        data.status,
+        data.requestedAt
+      ]];
+
+      const response = await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A:F`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error creating registration:', error);
+      throw error;
+    }
+  }
+
+  async approveRegistration(registrationId, role) {
+    try {
+      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
+      const registrations = await this.getPendingRegistrations();
+      const registration = registrations.find(r => r.id === registrationId);
+
+      if (!registration) {
+        throw new Error('Registration not found');
+      }
+
+      // Create user in users sheet
+      await this.createUserFromRegistration(registration, role);
+
+      // Update registration status
+      const values = [[
+        registration.id,
+        registration.username,
+        registration.password,
+        registration.name,
+        'approved',
+        registration.requestedAt
+      ]];
+
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A${registration.rowIndex}:F${registration.rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error approving registration:', error);
+      throw error;
+    }
+  }
+
+  async createUserFromRegistration(registration, role) {
+    try {
+      const values = [[
+        registration.id,
+        registration.username,
+        registration.password, // Already hashed
+        role,
+        registration.name
+      ]];
+
+      const response = await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.spreadsheetId,
+        range: `${process.env.USERS_SHEET}!A:E`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error creating user from registration:', error);
+      throw error;
+    }
+  }
+
+  async rejectRegistration(registrationId) {
+    try {
+      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
+      const registrations = await this.getPendingRegistrations();
+      const registration = registrations.find(r => r.id === registrationId);
+
+      if (!registration) {
+        throw new Error('Registration not found');
+      }
+
+      // Delete the registration row
+      return await this.deleteRow(sheetName, registration.rowIndex);
+    } catch (error) {
+      console.error('Error rejecting registration:', error);
+      throw error;
+    }
+  }
+
   // ============ SETTINGS MANAGEMENT ============
   async getSettings() {
     try {
