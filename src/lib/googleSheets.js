@@ -32,6 +32,31 @@ class GoogleSheetsService {
     this.auth = auth;
     this.sheets = google.sheets({ version: 'v4', auth: this.auth });
     this.spreadsheetId = process.env.SPREADSHEET_ID;
+    this.warrantySpreadsheetId = process.env.WARRANTY_SPREADSHEET_ID;
+    
+    // Simple cache
+    this.cache = {
+      data: null,
+      timestamp: null,
+      ttl: 30000 // 30 seconds cache
+    };
+  }
+
+  // Cache helper
+  isCacheValid() {
+    if (!this.cache.data || !this.cache.timestamp) return false;
+    return (Date.now() - this.cache.timestamp) < this.cache.ttl;
+  }
+
+  clearCache() {
+    this.cache.data = null;
+    this.cache.timestamp = null;
+  }
+
+  // Helper function to capitalize first letter of each word
+  toProperCase(str) {
+    if (!str) return '';
+    return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
   }
 
   // ============ USER MANAGEMENT ============
@@ -351,6 +376,13 @@ class GoogleSheetsService {
   // ============ CHAT PERFORMANCE DATA ============
   async getAllData() {
     try {
+      // Check cache first
+      if (this.isCacheValid()) {
+        console.log('📦 Using cached data');
+        return this.cache.data;
+      }
+
+      console.log('🔄 Fetching fresh data from Google Sheets');
       const settings = await this.getSettings();
       const sheetName = settings.data_sheet || process.env.DATA_SHEET;
 
@@ -372,6 +404,10 @@ class GoogleSheetsService {
         });
         return obj;
       });
+
+      // Update cache
+      this.cache.data = data;
+      this.cache.timestamp = Date.now();
 
       return data;
     } catch (error) {
@@ -411,6 +447,9 @@ class GoogleSheetsService {
         resource: { values },
       });
 
+      // Clear cache after adding data
+      this.clearCache();
+
       return response.data;
     } catch (error) {
       console.error('Error adding data:', error);
@@ -449,6 +488,9 @@ class GoogleSheetsService {
         resource: { values },
       });
 
+      // Clear cache after updating data
+      this.clearCache();
+
       return response.data;
     } catch (error) {
       console.error('Error updating data:', error);
@@ -461,7 +503,12 @@ class GoogleSheetsService {
       const settings = await this.getSettings();
       const sheetName = settings.data_sheet || process.env.DATA_SHEET;
       
-      return await this.deleteRow(sheetName, rowIndex);
+      const result = await this.deleteRow(sheetName, rowIndex);
+      
+      // Clear cache after deleting data
+      this.clearCache();
+      
+      return result;
     } catch (error) {
       console.error('Error deleting data:', error);
       throw error;
@@ -474,6 +521,71 @@ class GoogleSheetsService {
       return allData.find(item => item.rowIndex === rowIndex);
     } catch (error) {
       console.error('Error fetching single data:', error);
+      throw error;
+    }
+  }
+
+  // ============ WARRANTY DATA ============
+  async getWarrantyData() {
+    try {
+      // Fetch dari sheet 'form_warranty' dengan kolom A sampai N
+      // Struktur: id, order_number, full_name, birth_date, gender, whatsapp, 
+      //           email, address, postal_code, created_at, updated_at, channel, valid_order
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.warrantySpreadsheetId,
+        range: 'form_warranty!A:N',
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          // Convert channel to proper case if exists
+          if (header === 'channel') {
+            obj[header] = this.toProperCase(row[i] || '');
+          } else {
+            obj[header] = row[i] || '';
+          }
+        });
+        return obj;
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching warranty data:', error);
+      throw error;
+    }
+  }
+
+  async getCheckActivationData() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.warrantySpreadsheetId,
+        range: 'check-activation!A:Q',
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || '';
+        });
+        return obj;
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching check activation data:', error);
       throw error;
     }
   }
