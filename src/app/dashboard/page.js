@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Header from '@/components/Header';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [data, setData] = useState([]);
   const [stats, setStats] = useState({
     totalChats: 0,
@@ -53,6 +55,8 @@ export default function DashboardPage() {
       if (response.ok) {
         fetchData();
         fetchStats();
+      } else {
+        alert('Gagal menghapus data');
       }
     } catch (error) {
       console.error('Error deleting data:', error);
@@ -65,6 +69,9 @@ export default function DashboardPage() {
       String(val).toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
+
+  const canEdit = session?.user?.role === 'super_admin' || session?.user?.role === 'admin';
+  const canDelete = session?.user?.role === 'super_admin' || session?.user?.role === 'admin';
 
   if (loading) {
     return (
@@ -81,6 +88,7 @@ export default function DashboardPage() {
     <div>
       <Header title="Dashboard" />
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="stat-card-accent">
           <h3 className="text-sm font-semibold text-primary/80 mb-2 uppercase">Total Chats</h3>
@@ -98,6 +106,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Data Table */}
       <div className="card overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-2xl font-bold text-primary">Chat Performance Data</h2>
@@ -141,7 +150,9 @@ export default function DashboardPage() {
                   <th className="px-6 py-4 text-left text-sm font-semibold">Customer</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Order Number</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
+                  {(canEdit || canDelete) && (
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -167,22 +178,28 @@ export default function DashboardPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => router.push(`/dashboard/edit/${item.rowIndex}`)}
-                          className="bg-primary text-white px-3 py-1 rounded-lg hover:bg-[#164d6e] transition-colors text-xs font-semibold"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.rowIndex)}
-                          className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-xs font-semibold"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+                    {(canEdit || canDelete) && (
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex gap-2">
+                          {canEdit && (
+                            <button
+                              onClick={() => router.push(`/dashboard/edit/${item.rowIndex}`)}
+                              className="bg-primary text-white px-3 py-1 rounded-lg hover:bg-[#164d6e] transition-colors text-xs font-semibold"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(item.rowIndex)}
+                              className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-xs font-semibold"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { requireAuth } from '@/lib/auth';
 import googleSheets from '@/lib/googleSheets';
 
 export async function GET(request, { params }) {
-  const session = await getServerSession(authOptions);
+  const auth = await requireAuth();
   
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
@@ -15,15 +14,16 @@ export async function GET(request, { params }) {
     const data = await googleSheets.getDataByRowIndex(rowIndex);
     return NextResponse.json({ data });
   } catch (error) {
+    console.error('Error fetching data:', error);
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
   }
 }
 
 export async function PUT(request, { params }) {
-  const session = await getServerSession(authOptions);
+  const auth = await requireAuth('admin');
   
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
@@ -32,15 +32,16 @@ export async function PUT(request, { params }) {
     const result = await googleSheets.updateData(rowIndex, body);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
+    console.error('Error updating data:', error);
     return NextResponse.json({ error: 'Failed to update data' }, { status: 500 });
   }
 }
 
 export async function DELETE(request, { params }) {
-  const session = await getServerSession(authOptions);
+  const auth = await requireAuth('admin');
   
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
@@ -48,6 +49,7 @@ export async function DELETE(request, { params }) {
     const result = await googleSheets.deleteData(rowIndex);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
+    console.error('Error deleting data:', error);
     return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
   }
 }

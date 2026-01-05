@@ -1,28 +1,28 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { requireAuth } from '@/lib/auth';
 import googleSheets from '@/lib/googleSheets';
 
 export async function GET(request) {
-  const session = await getServerSession(authOptions);
+  const auth = await requireAuth();
   
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
     const data = await googleSheets.getAllData();
     return NextResponse.json({ data });
   } catch (error) {
+    console.error('Error fetching data:', error);
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
   }
 }
 
 export async function POST(request) {
-  const session = await getServerSession(authOptions);
+  const auth = await requireAuth();
   
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
@@ -30,6 +30,7 @@ export async function POST(request) {
     const result = await googleSheets.addData(body);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
+    console.error('Error adding data:', error);
     return NextResponse.json({ error: 'Failed to add data' }, { status: 500 });
   }
 }

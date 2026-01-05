@@ -1,5 +1,7 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import googleSheets from '@/lib/googleSheets';
+import bcrypt from 'bcryptjs';
 
 export const authOptions = {
   providers: [
@@ -10,22 +12,37 @@ export const authOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        console.log('🔐 Attempting login...');
-        
-        const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-        const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+        try {
+          console.log('🔐 Attempting login for:', credentials.username);
 
-        if (credentials?.username === adminUsername && credentials?.password === adminPassword) {
+          // Get user from Google Sheets
+          const user = await googleSheets.getUserByUsername(credentials.username);
+
+          if (!user) {
+            console.log('❌ User not found:', credentials.username);
+            return null;
+          }
+
+          // Verify password
+          const isValidPassword = await bcrypt.compare(credentials.password, user.password);
+
+          if (!isValidPassword) {
+            console.log('❌ Invalid password for:', credentials.username);
+            return null;
+          }
+
           console.log('✅ Login successful for:', credentials.username);
+
           return {
-            id: '1',
-            name: adminUsername,
-            email: `${adminUsername}@admin.com`,
+            id: user.id,
+            name: user.name || user.username,
+            username: user.username,
+            role: user.role,
           };
+        } catch (error) {
+          console.error('💥 Login error:', error);
+          return null;
         }
-        
-        console.log('❌ Login failed - Invalid credentials');
-        return null;
       }
     })
   ],
@@ -35,13 +52,15 @@ export const authOptions = {
   },
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60,
+    maxAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.name = user.name;
+        token.username = user.username;
+        token.role = user.role;
       }
       return token;
     },
@@ -49,6 +68,8 @@ export const authOptions = {
       if (token && session.user) {
         session.user.id = token.id;
         session.user.name = token.name;
+        session.user.username = token.username;
+        session.user.role = token.role;
       }
       return session;
     },

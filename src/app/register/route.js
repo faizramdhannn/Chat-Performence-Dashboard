@@ -23,6 +23,7 @@ export default function LoginPage() {
     setSuccess('');
 
     if (isRegister) {
+      // Handle registration
       try {
         const response = await fetch('/api/register', {
           method: 'POST',
@@ -47,6 +48,7 @@ export default function LoginPage() {
         setError('Terjadi kesalahan. Silakan coba lagi.');
       }
     } else {
+      // Handle login
       try {
         const result = await signIn('credentials', {
           username: formData.username,
@@ -106,6 +108,7 @@ export default function LoginPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required={isRegister}
+                autoComplete="name"
               />
             </div>
           )}
@@ -122,6 +125,8 @@ export default function LoginPage() {
               value={formData.username}
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               required
+              autoComplete="username"
+              autoFocus={!isRegister}
             />
           </div>
 
@@ -137,6 +142,7 @@ export default function LoginPage() {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
             />
           </div>
 
