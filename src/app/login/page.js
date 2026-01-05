@@ -74,10 +74,9 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="bg-accent/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">💬</span>
           </div>
           <h1 className="text-3xl font-bold text-primary mb-2">Chat Performance</h1>
-          <p className="text-gray-600">Dashboard System</p>
+          <p className="text-gray-600">Dashboard</p>
         </div>
 
         {error && (

@@ -41,7 +41,7 @@ export default function Sidebar() {
       },
       {
         href: "/dashboard/create",
-        label: "Tambah Data",
+        label: "Chat Creation",
         roles: ["super_admin", "admin", "cs"],
       },
     ];
@@ -50,7 +50,7 @@ export default function Sidebar() {
       {
         href: "/dashboard/analytics",
         label: "Analytics",
-        roles: ["super_admin", "admin"],
+        roles: ["super_admin", "admin", "cs"],
       },
     ];
 
