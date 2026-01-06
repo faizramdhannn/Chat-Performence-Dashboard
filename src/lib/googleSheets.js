@@ -71,7 +71,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:E`,
+        range: `${process.env.USERS_SHEET}!A:L`,
       });
 
       const rows = response.data.values;
@@ -590,7 +590,150 @@ class GoogleSheetsService {
     }
   }
 
+  // ============ STOCK LAST UPDATE ============
+async getStockLastUpdate() {
+  try {
+    const response = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: this.usersSpreadsheetId,
+      range: 'stock-updates!A:B',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return { shopify: null, javelin: null, threshold: null };
+    }
+
+    const lastUpdate = {};
+    rows.slice(1).forEach(row => {
+      if (row[0]) {
+        lastUpdate[row[0]] = row[1] || null;
+      }
+    });
+
+    return lastUpdate;
+  } catch (error) {
+    console.error('Error fetching stock last update:', error);
+    return { shopify: null, javelin: null, threshold: null };
+  }
+}
+
+async updateStockLastUpdate(type) {
+  try {
+    // Find row for this type
+    const response = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: this.usersSpreadsheetId,
+      range: 'stock-updates!A:A',
+    });
+
+    const rows = response.data.values || [];
+    let rowIndex = -1;
+
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === type) {
+        rowIndex = i + 1; // +1 because sheets are 1-indexed
+        break;
+      }
+    }
+
+    // If not found, append new row
+    if (rowIndex === -1) {
+      await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: 'stock-updates!A:B',
+        valueInputOption: 'USER_ENTERED',
+        resource: {
+          values: [[type, new Date().toISOString()]]
+        }
+      });
+    } else {
+      // Update existing row
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `stock-updates!B${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: {
+          values: [[new Date().toISOString()]]
+        }
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating stock last update:', error);
+    throw error;
+  }
+}
+
   // ============ HELPER METHODS ============
+  async getStockData() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: 'stock!A:J',
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || '';
+        });
+        return obj;
+      });
+
+      // Sort: Grade A-Z, then PCA descending
+      return data.sort((a, b) => {
+        const gradeCompare = String(a.Grade || '').localeCompare(String(b.Grade || ''));
+        if (gradeCompare !== 0) return gradeCompare;
+        
+        const pcaA = parseFloat(a.PCA) || 0;
+        const pcaB = parseFloat(b.PCA) || 0;
+        return pcaB - pcaA;
+      });
+    } catch (error) {
+      console.error('Error fetching stock data:', error);
+      throw error;
+    }
+  }
+
+  async importToSheet(sheetName, data) {
+    try {
+      // Clear existing data (except header)
+      await this.sheets.spreadsheets.values.clear({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `${sheetName}!A2:ZZ`,
+      });
+
+      // Prepare values
+      const values = data.map(row => {
+        // Get all keys from first row to maintain column order
+        const keys = Object.keys(data[0]);
+        return keys.map(key => row[key] || '');
+      });
+
+      // Insert new data
+      const response = await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `${sheetName}!A2`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
+
+      return {
+        rowsImported: values.length,
+        response: response.data
+      };
+    } catch (error) {
+      console.error('Error importing to sheet:', error);
+      throw error;
+    }
+  }
+
   async deleteRow(spreadsheetId, sheetName, rowIndex) {
     try {
       const sheetMetadata = await this.sheets.spreadsheets.get({

@@ -10,86 +10,113 @@ export default function Sidebar() {
   const { data: session } = useSession();
   const [pendingCount, setPendingCount] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [permissions, setPermissions] = useState({});
+  const [loadingPermissions, setLoadingPermissions] = useState(true);
 
   useEffect(() => {
-    // Fetch pending registrations count if super admin
-    if (session?.user?.role === "super_admin") {
+    if (session) {
+      fetchPermissions();
       fetchPendingCount();
-      // Refresh count every 30 seconds
       const interval = setInterval(fetchPendingCount, 30000);
       return () => clearInterval(interval);
     }
   }, [session]);
 
-  // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
+  const fetchPermissions = async () => {
+    try {
+      console.log('🔍 Fetching permissions for user:', session?.user?.username);
+      const response = await fetch('/api/user/permissions');
+      const result = await response.json();
+      console.log('✅ Permissions received:', result.permissions);
+      setPermissions(result.permissions || {});
+    } catch (error) {
+      console.error('❌ Error fetching permissions:', error);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  };
+
   const fetchPendingCount = async () => {
     try {
-      const response = await fetch("/api/registrations");
-      const result = await response.json();
-      setPendingCount(result.registrations?.length || 0);
+      if (permissions.registrations) {
+        const response = await fetch("/api/registrations");
+        const result = await response.json();
+        setPendingCount(result.registrations?.length || 0);
+      }
     } catch (error) {
       console.error("Error fetching pending count:", error);
     }
   };
 
-  const getMenuItems = () => {
-    const role = session?.user?.role;
+  const handleMenuClick = (e, item) => {
+    if (!item.permission) {
+      e.preventDefault();
+      alert('Anda tidak memiliki akses ke fitur ini. Hubungi Faiz jika ingin mengakses.');
+    }
+  };
 
-    const baseItems = [
+  const getAllMenuItems = () => {
+    return [
       {
         href: "/dashboard",
         label: "Dashboard",
-        roles: ["super_admin", "admin", "cs"],
+        permission: permissions.dashboard,
       },
       {
         href: "/dashboard/create",
         label: "Chat Creation",
-        roles: ["super_admin", "admin", "cs"],
+        permission: permissions.chatCreation,
       },
-    ];
-
-    const adminItems = [
       {
         href: "/dashboard/analytics",
         label: "Analytics",
-        roles: ["super_admin", "admin", "cs"],
+        permission: permissions.analytics,
       },
       {
         href: "/dashboard/warranty",
         label: "Warranty",
-        roles: ["super_admin", "admin", "cs"],
+        permission: permissions.warranty,
       },
-    ];
-
-    const superAdminItems = [
+      {
+        href: "/dashboard/stock",
+        label: "Stock",
+        permission: permissions.stock,
+      },
       {
         href: "/dashboard/registrations",
         label: "Registration Requests",
-        roles: ["super_admin"],
+        permission: permissions.registrations,
         badge: pendingCount,
       },
       {
         href: "/dashboard/users",
         label: "User Management",
-        roles: ["super_admin"],
+        permission: permissions.userManagement,
       },
       {
         href: "/dashboard/settings",
         label: "Settings",
-        roles: ["super_admin"],
+        permission: permissions.settings,
       },
     ];
-
-    const allItems = [...baseItems, ...adminItems, ...superAdminItems];
-
-    return allItems.filter((item) => item.roles.includes(role));
   };
 
-  const menuItems = getMenuItems();
+  const menuItems = getAllMenuItems();
+
+  if (loadingPermissions) {
+    return (
+      <aside className="w-64 bg-primary text-white min-h-screen p-6 fixed left-0 top-0 overflow-y-auto z-40">
+        <div className="mb-8 pb-6 border-b border-white/10">
+          <h2 className="text-2xl font-bold text-accent">CS Torch</h2>
+        </div>
+        <div className="text-center text-white/60">Loading...</div>
+      </aside>
+    );
+  }
 
   return (
     <>
@@ -143,11 +170,7 @@ export default function Sidebar() {
         <div className="mb-8 pb-6 border-b border-white/10">
           <h2 className="text-2xl font-bold text-accent">CS Torch</h2>
           <p className="text-xs text-white/60 mt-1">
-            {session?.user?.role === "super_admin"
-              ? "Super Admin"
-              : session?.user?.role === "admin"
-              ? "Admin"
-              : "Customer Service"}
+            {session?.user?.name || 'User'}
           </p>
         </div>
 
@@ -156,18 +179,28 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={(e) => handleMenuClick(e, item)}
               className={`block px-4 py-3 rounded-lg transition-all duration-300 relative ${
                 pathname === item.href
                   ? "bg-accent/20 text-accent"
-                  : "hover:bg-white/10 text-white"
+                  : item.permission
+                  ? "hover:bg-white/10 text-white"
+                  : "text-white/40 hover:bg-white/5"
               }`}
             >
-              <span>{item.label}</span>
-              {item.badge > 0 && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">
-                  {item.badge}
-                </span>
-              )}
+              <div className="flex items-center justify-between">
+                <span>{item.label}</span>
+                <div className="flex items-center gap-2">
+                  {item.badge > 0 && (
+                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">
+                      {item.badge}
+                    </span>
+                  )}
+                  {!item.permission && (
+                    <span className="text-xs">🔒</span>
+                  )}
+                </div>
+              </div>
             </Link>
           ))}
 
@@ -180,13 +213,6 @@ export default function Sidebar() {
             </button>
           </div>
         </nav>
-
-        <div className="absolute bottom-6 left-6 right-6">
-          <div className="bg-white/10 rounded-lg p-3">
-            <p className="text-xs text-white/80 font-semibold">Logged in as:</p>
-            <p className="text-sm text-white truncate">{session?.user?.name}</p>
-          </div>
-        </div>
       </aside>
     </>
   );

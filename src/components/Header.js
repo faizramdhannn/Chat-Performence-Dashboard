@@ -15,10 +15,6 @@ export default function Header({ title }) {
           <p className="font-semibold text-primary">
             {session?.user?.name || 'User'}
           </p>
-          <p className="text-xs text-gray-400">
-            {session?.user?.role === 'super_admin' ? 'Super Admin' : 
-             session?.user?.role === 'admin' ? 'Admin' : 'CS'}
-          </p>
         </div>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
