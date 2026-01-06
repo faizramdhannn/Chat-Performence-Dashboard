@@ -67,13 +67,7 @@ export default function AnalyticsPage() {
   };
 
   useEffect(() => {
-    // Check if user has permission
-    if (session && session.user.role === "cs") {
-      alert("You do not have permission to access analytics");
-      router.push("/dashboard");
-      return;
-    }
-
+    // CS sekarang bisa akses analytics
     fetchAnalytics();
   }, [session]);
 

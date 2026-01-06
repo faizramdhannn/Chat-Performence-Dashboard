@@ -31,7 +31,14 @@ class GoogleSheetsService {
     
     this.auth = auth;
     this.sheets = google.sheets({ version: 'v4', auth: this.auth });
+    
+    // Main data spreadsheet
     this.spreadsheetId = process.env.SPREADSHEET_ID;
+    
+    // Users & Settings spreadsheet (BARU - Spreadsheet terpisah)
+    this.usersSpreadsheetId = process.env.USERS_SPREADSHEET_ID;
+    
+    // Warranty spreadsheet
     this.warrantySpreadsheetId = process.env.WARRANTY_SPREADSHEET_ID;
     
     // Simple cache
@@ -59,11 +66,11 @@ class GoogleSheetsService {
     return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
   }
 
-  // ============ USER MANAGEMENT ============
+  // ============ USER MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
   async getAllUsers() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${process.env.USERS_SHEET}!A:E`,
       });
 
@@ -109,7 +116,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${process.env.USERS_SHEET}!A:E`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -140,7 +147,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${process.env.USERS_SHEET}!A${rowIndex}:E${rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -155,19 +162,19 @@ class GoogleSheetsService {
 
   async deleteUser(rowIndex) {
     try {
-      return await this.deleteRow(process.env.USERS_SHEET, rowIndex);
+      return await this.deleteRow(this.usersSpreadsheetId, process.env.USERS_SHEET, rowIndex);
     } catch (error) {
       console.error('Error deleting user:', error);
       throw error;
     }
   }
 
-  // ============ REGISTRATION MANAGEMENT ============
+  // ============ REGISTRATION MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
   async getPendingRegistrations() {
     try {
       const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${sheetName}!A:F`,
       });
 
@@ -207,7 +214,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${sheetName}!A:F`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -244,7 +251,7 @@ class GoogleSheetsService {
       ]];
 
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${sheetName}!A${registration.rowIndex}:F${registration.rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -268,7 +275,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${process.env.USERS_SHEET}!A:E`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -292,18 +299,18 @@ class GoogleSheetsService {
       }
 
       // Delete the registration row
-      return await this.deleteRow(sheetName, registration.rowIndex);
+      return await this.deleteRow(this.usersSpreadsheetId, sheetName, registration.rowIndex);
     } catch (error) {
       console.error('Error rejecting registration:', error);
       throw error;
     }
   }
 
-  // ============ SETTINGS MANAGEMENT ============
+  // ============ SETTINGS MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
   async getSettings() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${process.env.SETTINGS_SHEET}!A:B`,
       });
 
@@ -331,7 +338,7 @@ class GoogleSheetsService {
       const values = Object.entries(settings).map(([key, value]) => [key, value]);
 
       const response = await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
         range: `${process.env.SETTINGS_SHEET}!A:B`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -344,11 +351,11 @@ class GoogleSheetsService {
     }
   }
 
-  // ============ MASTER DATA (DROPDOWNS) ============
+  // ============ MASTER DATA (DROPDOWNS) - TETAP DI spreadsheetId ============
   async getMasterData() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
         range: `${process.env.MASTER_DATA_SHEET}!A:O`,
       });
 
@@ -373,7 +380,7 @@ class GoogleSheetsService {
     }
   }
 
-  // ============ CHAT PERFORMANCE DATA ============
+  // ============ CHAT PERFORMANCE DATA - TETAP DI spreadsheetId ============
   async getAllData() {
     try {
       // Check cache first
@@ -383,11 +390,10 @@ class GoogleSheetsService {
       }
 
       console.log('🔄 Fetching fresh data from Google Sheets');
-      const settings = await this.getSettings();
-      const sheetName = settings.data_sheet || process.env.DATA_SHEET;
+      const sheetName = process.env.DATA_SHEET;
 
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
         range: `${sheetName}!A:P`,
       });
 
@@ -418,8 +424,7 @@ class GoogleSheetsService {
 
   async addData(data) {
     try {
-      const settings = await this.getSettings();
-      const sheetName = settings.data_sheet || process.env.DATA_SHEET;
+      const sheetName = process.env.DATA_SHEET;
 
       const values = [[
         data.date || '',
@@ -441,7 +446,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
         range: `${sheetName}!A:P`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -459,8 +464,7 @@ class GoogleSheetsService {
 
   async updateData(rowIndex, data) {
     try {
-      const settings = await this.getSettings();
-      const sheetName = settings.data_sheet || process.env.DATA_SHEET;
+      const sheetName = process.env.DATA_SHEET;
 
       const values = [[
         data.date || '',
@@ -482,7 +486,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
         range: `${sheetName}!A${rowIndex}:P${rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -500,10 +504,9 @@ class GoogleSheetsService {
 
   async deleteData(rowIndex) {
     try {
-      const settings = await this.getSettings();
-      const sheetName = settings.data_sheet || process.env.DATA_SHEET;
+      const sheetName = process.env.DATA_SHEET;
       
-      const result = await this.deleteRow(sheetName, rowIndex);
+      const result = await this.deleteRow(this.spreadsheetId, sheetName, rowIndex);
       
       // Clear cache after deleting data
       this.clearCache();
@@ -528,9 +531,6 @@ class GoogleSheetsService {
   // ============ WARRANTY DATA ============
   async getWarrantyData() {
     try {
-      // Fetch dari sheet 'form_warranty' dengan kolom A sampai N
-      // Struktur: id, order_number, full_name, birth_date, gender, whatsapp, 
-      //           email, address, postal_code, created_at, updated_at, channel, valid_order
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.warrantySpreadsheetId,
         range: 'form_warranty!A:N',
@@ -591,10 +591,10 @@ class GoogleSheetsService {
   }
 
   // ============ HELPER METHODS ============
-  async deleteRow(sheetName, rowIndex) {
+  async deleteRow(spreadsheetId, sheetName, rowIndex) {
     try {
       const sheetMetadata = await this.sheets.spreadsheets.get({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: spreadsheetId,
       });
 
       const sheet = sheetMetadata.data.sheets.find(
@@ -608,7 +608,7 @@ class GoogleSheetsService {
       const sheetId = sheet.properties.sheetId;
 
       const response = await this.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: this.spreadsheetId,
+        spreadsheetId: spreadsheetId,
         resource: {
           requests: [
             {

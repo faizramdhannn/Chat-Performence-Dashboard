@@ -17,8 +17,8 @@ export async function POST(request) {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Warranty Report');
 
-    // Add headers
-    const headers = ['Month-Year', ...pivotData.columns, 'TOTAL'];
+    // DITUKAR: Headers sekarang Channel (baris) vs Year (kolom)
+    const headers = ['Channel', ...pivotData.columns, 'TOTAL'];
     worksheet.addRow(headers);
 
     // Style header
@@ -30,16 +30,16 @@ export async function POST(request) {
     };
     worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-    // Add data rows
-    pivotData.rows.forEach((monthYear, index) => {
-      const rowData = [monthYear];
+    // Add data rows - DITUKAR
+    pivotData.rows.forEach((channel, index) => {
+      const rowData = [channel]; // Channel sebagai row
       
-      pivotData.columns.forEach(platform => {
-        const value = pivotData.matrix[monthYear][platform] || 0;
+      pivotData.columns.forEach(year => {
+        const value = pivotData.matrix[channel][year] || 0;
         rowData.push(value);
       });
       
-      rowData.push(pivotData.rowTotals[monthYear] || 0);
+      rowData.push(pivotData.rowTotals[channel] || 0);
       
       const row = worksheet.addRow(rowData);
       
@@ -54,8 +54,8 @@ export async function POST(request) {
 
     // Add totals row
     const totalRow = ['TOTAL'];
-    pivotData.columns.forEach(platform => {
-      totalRow.push(pivotData.columnTotals[platform] || 0);
+    pivotData.columns.forEach(year => {
+      totalRow.push(pivotData.columnTotals[year] || 0);
     });
     totalRow.push(pivotData.grandTotal || 0);
 
@@ -68,7 +68,7 @@ export async function POST(request) {
     row.font = { bold: true };
 
     // Set column widths
-    worksheet.getColumn(1).width = 20;
+    worksheet.getColumn(1).width = 30;
     for (let i = 2; i <= headers.length; i++) {
       worksheet.getColumn(i).width = 15;
     }

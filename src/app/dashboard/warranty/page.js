@@ -32,10 +32,10 @@ export default function WarrantyPage() {
     monthTo: '',
   });
 
-  // Pivot data for report
+  // Pivot data for report - DITUKAR: Channel ke bawah, Year ke samping
   const [pivotData, setPivotData] = useState({
-    rows: [],
-    columns: [],
+    rows: [],      // channels
+    columns: [],   // years
     matrix: {},
     totals: {},
   });
@@ -53,7 +53,6 @@ export default function WarrantyPage() {
   const fetchWarrantyData = async () => {
     setLoading(true);
     try {
-      // Fetch both warranty and check-activation data for report
       const type = selectedView === 'report' ? 'warranty' : selectedView;
       const response = await fetch(`/api/warranty?type=${type}`);
       const result = await response.json();
@@ -82,23 +81,14 @@ export default function WarrantyPage() {
     }
   };
 
-  const getMonthYear = (dateStr) => {
+  const getYear = (dateStr) => {
     if (!dateStr) return null;
     try {
       const date = new Date(dateStr);
-      const month = date.toLocaleString('en-US', { month: 'short' });
-      const year = date.getFullYear();
-      return `${month} ${year}`;
+      return date.getFullYear().toString();
     } catch (e) {
       return null;
     }
-  };
-
-  const parseMonthYear = (monthYearStr) => {
-    // Convert "Jan 2024" to Date object
-    const [month, year] = monthYearStr.split(' ');
-    const monthIndex = new Date(`${month} 1, 2000`).getMonth();
-    return new Date(parseInt(year), monthIndex, 1);
   };
 
   const processReportData = () => {
@@ -127,48 +117,48 @@ export default function WarrantyPage() {
       });
     }
 
-    // Get unique channels and month-years
+    // DITUKAR: Get unique channels (baris) dan years (kolom)
     const uniqueChannels = [...new Set(reportData.map(item => item.channel).filter(Boolean))].sort();
-    const monthYears = [...new Set(reportData.map(item => getMonthYear(item.created_at)).filter(Boolean))];
+    const years = [...new Set(reportData.map(item => getYear(item.created_at)).filter(Boolean))];
     
-    // Sort month-years chronologically
-    const sortedMonthYears = monthYears.sort((a, b) => {
-      return parseMonthYear(a) - parseMonthYear(b);
-    });
+    // Sort years chronologically
+    const sortedYears = years.sort((a, b) => parseInt(a) - parseInt(b));
 
-    // Build matrix
+    // Build matrix - DITUKAR
     const matrix = {};
-    const rowTotals = {};
-    const columnTotals = {};
+    const rowTotals = {}; // total per channel
+    const columnTotals = {}; // total per year
     let grandTotal = 0;
 
-    sortedMonthYears.forEach(monthYear => {
-      matrix[monthYear] = {};
-      rowTotals[monthYear] = 0;
-      uniqueChannels.forEach(channel => {
-        matrix[monthYear][channel] = 0;
+    // Initialize matrix dengan channel sebagai baris
+    uniqueChannels.forEach(channel => {
+      matrix[channel] = {};
+      rowTotals[channel] = 0;
+      sortedYears.forEach(year => {
+        matrix[channel][year] = 0;
       });
     });
 
-    uniqueChannels.forEach(channel => {
-      columnTotals[channel] = 0;
+    sortedYears.forEach(year => {
+      columnTotals[year] = 0;
     });
 
+    // Fill matrix
     reportData.forEach(item => {
-      const monthYear = getMonthYear(item.created_at);
       const channel = item.channel;
+      const year = getYear(item.created_at);
 
-      if (monthYear && channel && matrix[monthYear] && matrix[monthYear][channel] !== undefined) {
-        matrix[monthYear][channel]++;
-        rowTotals[monthYear]++;
-        columnTotals[channel]++;
+      if (channel && year && matrix[channel] && matrix[channel][year] !== undefined) {
+        matrix[channel][year]++;
+        rowTotals[channel]++;
+        columnTotals[year]++;
         grandTotal++;
       }
     });
 
     setPivotData({
-      rows: sortedMonthYears,
-      columns: uniqueChannels,
+      rows: uniqueChannels,        // channels sebagai baris
+      columns: sortedYears,        // years sebagai kolom
       matrix: matrix,
       rowTotals: rowTotals,
       columnTotals: columnTotals,
@@ -485,19 +475,19 @@ export default function WarrantyPage() {
         </div>
       )}
 
-      {/* Summary for report */}
+      {/* Summary for report - UPDATED */}
       {selectedView === 'report' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="stat-card-accent">
             <h3 className="text-sm font-semibold text-primary/80 mb-2 uppercase">
-              Total Months
+              Total Channels
             </h3>
             <div className="text-4xl font-bold text-primary">{pivotData.rows?.length || 0}</div>
           </div>
 
           <div className="stat-card">
             <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase">
-              Total Channels
+              Total Years
             </h3>
             <div className="text-4xl font-bold text-primary">{pivotData.columns?.length || 0}</div>
           </div>
@@ -668,7 +658,7 @@ export default function WarrantyPage() {
         </div>
       )}
 
-      {/* Report Pivot Table */}
+      {/* Report Pivot Table - DITUKAR */}
       {selectedView === 'report' && (
         <div className="card overflow-hidden">
           {pivotData.rows?.length === 0 ? (
@@ -684,14 +674,14 @@ export default function WarrantyPage() {
                 <thead>
                   <tr>
                     <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
-                      Month-Year
+                      Channel
                     </th>
-                    {pivotData.columns?.map((channel, idx) => (
+                    {pivotData.columns?.map((year, idx) => (
                       <th
                         key={idx}
                         className="px-4 py-3 bg-primary text-white text-center font-bold border border-gray-300 min-w-[100px]"
                       >
-                        {channel}
+                        {year}
                       </th>
                     ))}
                     <th className="px-4 py-3 bg-accent text-primary text-center font-bold border border-gray-300 min-w-[100px]">
@@ -700,17 +690,17 @@ export default function WarrantyPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pivotData.rows?.map((monthYear, rowIdx) => {
-                    const rowTotal = pivotData.rowTotals?.[monthYear] || 0;
+                  {pivotData.rows?.map((channel, rowIdx) => {
+                    const rowTotal = pivotData.rowTotals?.[channel] || 0;
                     const rowColor = getCellColor(rowTotal, maxRowValue);
 
                     return (
                       <tr key={rowIdx} className="hover:bg-gray-50">
                         <td className="px-4 py-3 border border-gray-300 font-semibold text-gray-800 sticky left-0 bg-white z-10">
-                          {monthYear}
+                          {channel}
                         </td>
-                        {pivotData.columns?.map((channel, colIdx) => {
-                          const value = pivotData.matrix?.[monthYear]?.[channel] || 0;
+                        {pivotData.columns?.map((year, colIdx) => {
+                          const value = pivotData.matrix?.[channel]?.[year] || 0;
                           return (
                             <td
                               key={colIdx}
@@ -735,12 +725,12 @@ export default function WarrantyPage() {
                     <td className="px-4 py-3 border border-gray-300 text-gray-800 sticky left-0 z-10 bg-yellow-100">
                       TOTAL
                     </td>
-                    {pivotData.columns?.map((channel, idx) => (
+                    {pivotData.columns?.map((year, idx) => (
                       <td
                         key={idx}
                         className="px-4 py-3 border border-gray-300 text-center text-gray-800"
                       >
-                        {pivotData.columnTotals?.[channel] || 0}
+                        {pivotData.columnTotals?.[year] || 0}
                       </td>
                     ))}
                     <td className="px-4 py-3 border border-gray-300 text-center bg-red-600 text-white text-lg">
