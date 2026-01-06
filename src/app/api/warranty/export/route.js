@@ -17,7 +17,7 @@ export async function POST(request) {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Warranty Report');
 
-    // DITUKAR: Headers sekarang Channel (baris) vs Year (kolom)
+    // DITUKAR: Headers sekarang Channel (baris) vs Month-Year (kolom)
     const headers = ['Channel', ...pivotData.columns, 'TOTAL'];
     worksheet.addRow(headers);
 
@@ -34,8 +34,8 @@ export async function POST(request) {
     pivotData.rows.forEach((channel, index) => {
       const rowData = [channel]; // Channel sebagai row
       
-      pivotData.columns.forEach(year => {
-        const value = pivotData.matrix[channel][year] || 0;
+      pivotData.columns.forEach(monthYear => {
+        const value = pivotData.matrix[channel][monthYear] || 0;
         rowData.push(value);
       });
       
@@ -54,8 +54,8 @@ export async function POST(request) {
 
     // Add totals row
     const totalRow = ['TOTAL'];
-    pivotData.columns.forEach(year => {
-      totalRow.push(pivotData.columnTotals[year] || 0);
+    pivotData.columns.forEach(monthYear => {
+      totalRow.push(pivotData.columnTotals[monthYear] || 0);
     });
     totalRow.push(pivotData.grandTotal || 0);
 

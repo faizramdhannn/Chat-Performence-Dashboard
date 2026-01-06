@@ -81,14 +81,23 @@ export default function WarrantyPage() {
     }
   };
 
-  const getYear = (dateStr) => {
+  const getMonthYear = (dateStr) => {
     if (!dateStr) return null;
     try {
       const date = new Date(dateStr);
-      return date.getFullYear().toString();
+      const month = date.toLocaleString('en-US', { month: 'short' });
+      const year = date.getFullYear();
+      return `${month} ${year}`;
     } catch (e) {
       return null;
     }
+  };
+
+  const parseMonthYear = (monthYearStr) => {
+    // Convert "Jan 2024" to Date object for sorting
+    const [month, year] = monthYearStr.split(' ');
+    const monthIndex = new Date(`${month} 1, 2000`).getMonth();
+    return new Date(parseInt(year), monthIndex, 1);
   };
 
   const processReportData = () => {
@@ -117,48 +126,50 @@ export default function WarrantyPage() {
       });
     }
 
-    // DITUKAR: Get unique channels (baris) dan years (kolom)
+    // DITUKAR: Get unique channels (baris) dan month-years (kolom)
     const uniqueChannels = [...new Set(reportData.map(item => item.channel).filter(Boolean))].sort();
-    const years = [...new Set(reportData.map(item => getYear(item.created_at)).filter(Boolean))];
+    const monthYears = [...new Set(reportData.map(item => getMonthYear(item.created_at)).filter(Boolean))];
     
-    // Sort years chronologically
-    const sortedYears = years.sort((a, b) => parseInt(a) - parseInt(b));
+    // Sort month-years chronologically
+    const sortedMonthYears = monthYears.sort((a, b) => {
+      return parseMonthYear(a) - parseMonthYear(b);
+    });
 
     // Build matrix - DITUKAR
     const matrix = {};
     const rowTotals = {}; // total per channel
-    const columnTotals = {}; // total per year
+    const columnTotals = {}; // total per month-year
     let grandTotal = 0;
 
     // Initialize matrix dengan channel sebagai baris
     uniqueChannels.forEach(channel => {
       matrix[channel] = {};
       rowTotals[channel] = 0;
-      sortedYears.forEach(year => {
-        matrix[channel][year] = 0;
+      sortedMonthYears.forEach(monthYear => {
+        matrix[channel][monthYear] = 0;
       });
     });
 
-    sortedYears.forEach(year => {
-      columnTotals[year] = 0;
+    sortedMonthYears.forEach(monthYear => {
+      columnTotals[monthYear] = 0;
     });
 
     // Fill matrix
     reportData.forEach(item => {
       const channel = item.channel;
-      const year = getYear(item.created_at);
+      const monthYear = getMonthYear(item.created_at);
 
-      if (channel && year && matrix[channel] && matrix[channel][year] !== undefined) {
-        matrix[channel][year]++;
+      if (channel && monthYear && matrix[channel] && matrix[channel][monthYear] !== undefined) {
+        matrix[channel][monthYear]++;
         rowTotals[channel]++;
-        columnTotals[year]++;
+        columnTotals[monthYear]++;
         grandTotal++;
       }
     });
 
     setPivotData({
       rows: uniqueChannels,        // channels sebagai baris
-      columns: sortedYears,        // years sebagai kolom
+      columns: sortedMonthYears,   // month-years sebagai kolom
       matrix: matrix,
       rowTotals: rowTotals,
       columnTotals: columnTotals,
@@ -487,7 +498,7 @@ export default function WarrantyPage() {
 
           <div className="stat-card">
             <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase">
-              Total Years
+              Total Months
             </h3>
             <div className="text-4xl font-bold text-primary">{pivotData.columns?.length || 0}</div>
           </div>
@@ -676,12 +687,12 @@ export default function WarrantyPage() {
                     <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
                       Channel
                     </th>
-                    {pivotData.columns?.map((year, idx) => (
+                    {pivotData.columns?.map((monthYear, idx) => (
                       <th
                         key={idx}
                         className="px-4 py-3 bg-primary text-white text-center font-bold border border-gray-300 min-w-[100px]"
                       >
-                        {year}
+                        {monthYear}
                       </th>
                     ))}
                     <th className="px-4 py-3 bg-accent text-primary text-center font-bold border border-gray-300 min-w-[100px]">
@@ -699,8 +710,8 @@ export default function WarrantyPage() {
                         <td className="px-4 py-3 border border-gray-300 font-semibold text-gray-800 sticky left-0 bg-white z-10">
                           {channel}
                         </td>
-                        {pivotData.columns?.map((year, colIdx) => {
-                          const value = pivotData.matrix?.[channel]?.[year] || 0;
+                        {pivotData.columns?.map((monthYear, colIdx) => {
+                          const value = pivotData.matrix?.[channel]?.[monthYear] || 0;
                           return (
                             <td
                               key={colIdx}
@@ -725,12 +736,12 @@ export default function WarrantyPage() {
                     <td className="px-4 py-3 border border-gray-300 text-gray-800 sticky left-0 z-10 bg-yellow-100">
                       TOTAL
                     </td>
-                    {pivotData.columns?.map((year, idx) => (
+                    {pivotData.columns?.map((monthYear, idx) => (
                       <td
                         key={idx}
                         className="px-4 py-3 border border-gray-300 text-center text-gray-800"
                       >
-                        {pivotData.columnTotals?.[year] || 0}
+                        {pivotData.columnTotals?.[monthYear] || 0}
                       </td>
                     ))}
                     <td className="px-4 py-3 border border-gray-300 text-center bg-red-600 text-white text-lg">
