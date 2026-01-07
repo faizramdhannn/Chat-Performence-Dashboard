@@ -9,6 +9,7 @@ export default function UsersPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [users, setUsers] = useState([]);
+  const [userActivity, setUserActivity] = useState({});
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
@@ -44,9 +45,21 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    // PERBAIKAN: Pakai permission check, bukan role check
     checkPermission();
   }, [session]);
+
+  // Auto-refresh user activity every 30 seconds
+  useEffect(() => {
+    if (users.length > 0) {
+      fetchUserActivity();
+      
+      const interval = setInterval(() => {
+        fetchUserActivity();
+      }, 30000); // 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [users.length]);
 
   const checkPermission = async () => {
     if (!session) return;
@@ -61,7 +74,6 @@ export default function UsersPage() {
         return;
       }
       
-      // Jika punya permission, fetch users
       fetchUsers();
     } catch (error) {
       console.error('Error checking permission:', error);
@@ -81,6 +93,64 @@ export default function UsersPage() {
     }
   };
 
+  const fetchUserActivity = async () => {
+    try {
+      const response = await fetch('/api/user/activity');
+      const result = await response.json();
+      
+      // Convert array to object for easy lookup
+      const activityMap = {};
+      result.users?.forEach(user => {
+        activityMap[user.username] = {
+          isOnline: user.isOnline,
+          minutesAgo: user.minutesAgo,
+          lastActivity: user.lastActivity
+        };
+      });
+      
+      setUserActivity(activityMap);
+    } catch (error) {
+      console.error('Error fetching user activity:', error);
+    }
+  };
+
+  const getOnlineStatus = (username) => {
+    const activity = userActivity[username];
+    if (!activity) return { status: 'unknown', text: 'Unknown', color: 'bg-gray-400' };
+    
+    if (activity.isOnline) {
+      return { status: 'online', text: 'Online', color: 'bg-green-500' };
+    }
+    
+    if (activity.minutesAgo === null) {
+      return { status: 'never', text: 'Never logged in', color: 'bg-gray-400' };
+    }
+    
+    if (activity.minutesAgo < 60) {
+      return { 
+        status: 'recent', 
+        text: `${activity.minutesAgo}m ago`, 
+        color: 'bg-yellow-500' 
+      };
+    }
+    
+    if (activity.minutesAgo < 1440) { // < 24 hours
+      const hours = Math.floor(activity.minutesAgo / 60);
+      return { 
+        status: 'hours', 
+        text: `${hours}h ago`, 
+        color: 'bg-orange-500' 
+      };
+    }
+    
+    const days = Math.floor(activity.minutesAgo / 1440);
+    return { 
+      status: 'days', 
+      text: `${days}d ago`, 
+      color: 'bg-red-500' 
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -89,7 +159,6 @@ export default function UsersPage() {
       const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
       const method = editingUser ? 'PUT' : 'POST';
 
-      // Combine formData with permissions
       const dataToSend = {
         ...formData,
         ...permissions
@@ -196,7 +265,6 @@ export default function UsersPage() {
       password: '',
       name: user.name,
     });
-    // Load existing permissions
     setPermissions({
       dashboard: user.dashboard === 'TRUE' || user.dashboard === true,
       chat_creation: user.chat_creation === 'TRUE' || user.chat_creation === true,
@@ -261,7 +329,10 @@ export default function UsersPage() {
 
       <div className="card overflow-hidden">
         <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-primary">Manage Users</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-primary">Manage Users</h2>
+            <p className="text-xs text-gray-500 mt-1">🟢 Online status updates every 30s</p>
+          </div>
           <button
             onClick={openCreateModal}
             className="btn-primary"
@@ -274,6 +345,7 @@ export default function UsersPage() {
           <table className="w-full">
             <thead className="bg-primary text-white">
               <tr>
+                <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold">Username</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold">Name</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold">Permissions</th>
@@ -281,48 +353,58 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr
-                  key={user.id}
-                  className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
-                >
-                  <td className="px-6 py-4 text-sm font-medium">{user.username}</td>
-                  <td className="px-6 py-4 text-sm">{user.name}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="text-xs text-gray-600 max-w-xs truncate">
-                      {getPermissionsSummary(user)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openPermissionsModal(user)}
-                        className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold"
-                      >
-                        Permissions
-                      </button>
-                      <button
-                        onClick={() => openEditModal(user)}
-                        className="bg-primary text-white px-3 py-1 rounded-lg hover:bg-[#164d6e] transition-colors text-xs font-semibold"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.id)}
-                        className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-xs font-semibold"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {users.map((user) => {
+                const status = getOnlineStatus(user.username);
+                
+                return (
+                  <tr
+                    key={user.id}
+                    className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
+                  >
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${status.color} ${status.status === 'online' ? 'animate-pulse' : ''}`} />
+                        <span className="text-xs font-medium text-gray-600">{status.text}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium">{user.username}</td>
+                    <td className="px-6 py-4 text-sm">{user.name}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="text-xs text-gray-600 max-w-xs truncate">
+                        {getPermissionsSummary(user)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openPermissionsModal(user)}
+                          className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold"
+                        >
+                          Permissions
+                        </button>
+                        <button
+                          onClick={() => openEditModal(user)}
+                          className="bg-primary text-white px-3 py-1 rounded-lg hover:bg-[#164d6e] transition-colors text-xs font-semibold"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(user.id)}
+                          className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors text-xs font-semibold"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Create/Edit User Modal */}
+      {/* Create/Edit User Modal - Same as before */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -412,7 +494,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Permissions Modal */}
+      {/* Permissions Modal - Same as before */}
       {showPermissionsModal && selectedUserForPermissions && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">

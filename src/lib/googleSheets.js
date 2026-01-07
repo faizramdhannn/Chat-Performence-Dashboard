@@ -71,7 +71,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:M`, // UPDATE: A-M untuk include permissions
+        range: `${process.env.USERS_SHEET}!A:N`, // UPDATE: A-N untuk include permissions
       });
 
       const rows = response.data.values;
@@ -121,11 +121,12 @@ class GoogleSheetsService {
         userData.registrations || 'FALSE',
         userData.user_management || 'FALSE',
         userData.settings || 'FALSE',
+        '', // N: last_activity (empty on create)
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:M`, // UPDATE: A-M
+        range: `${process.env.USERS_SHEET}!A:N`, // UPDATE: A-N
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -160,11 +161,12 @@ class GoogleSheetsService {
         userData.registrations || 'FALSE',
         userData.user_management || 'FALSE',
         userData.settings || 'FALSE',
+        userData.last_activity || '', // N: last_activity
       ]];
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A${rowIndex}:M${rowIndex}`, // UPDATE: A-M
+        range: `${process.env.USERS_SHEET}!A${rowIndex}:N${rowIndex}`, // UPDATE: A-N
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -181,6 +183,33 @@ class GoogleSheetsService {
       return await this.deleteRow(this.usersSpreadsheetId, process.env.USERS_SHEET, rowIndex);
     } catch (error) {
       console.error('Error deleting user:', error);
+      throw error;
+    }
+  }
+
+  // ============ USER ACTIVITY TRACKING ============
+  async updateUserLastActivity(username, timestamp) {
+    try {
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.username === username);
+      
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Update only column N (last_activity)
+      const response = await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `${process.env.USERS_SHEET}!N${user.rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: {
+          values: [[timestamp]]
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error updating last activity:', error);
       throw error;
     }
   }
@@ -296,11 +325,12 @@ class GoogleSheetsService {
         permissions.registrations || 'FALSE',
         permissions.user_management || 'FALSE',
         permissions.settings || 'FALSE',
+        '', // N: last_activity (empty on create)
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:M`, // UPDATE: A-M
+        range: `${process.env.USERS_SHEET}!A:N`, // UPDATE: A-N
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
