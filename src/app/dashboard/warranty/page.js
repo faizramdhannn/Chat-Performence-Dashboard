@@ -462,24 +462,24 @@ export default function WarrantyPage() {
       {selectedView !== 'report' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="stat-card-accent">
-            <h3 className="text-sm font-semibold text-primary/80 mb-2 uppercase">
+            <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
               Total Records
             </h3>
-            <div className="text-4xl font-bold text-primary">{filteredData.length}</div>
+            <div className="text-4xl text-center font-bold text-primary">{filteredData.length}</div>
           </div>
 
           <div className="stat-card">
-            <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase">
+            <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
               Current Page
             </h3>
-            <div className="text-4xl font-bold text-primary">{currentPage} / {totalPages || 1}</div>
+            <div className="text-4xl text-center font-bold text-primary">{currentPage} / {totalPages || 1}</div>
           </div>
 
           <div className="stat-card">
-            <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase">
+            <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
               Showing
             </h3>
-            <div className="text-4xl font-bold text-primary">
+            <div className="text-4xl text-center font-bold text-primary">
               {paginatedData.length} of {filteredData.length}
             </div>
           </div>

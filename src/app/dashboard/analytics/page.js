@@ -355,37 +355,37 @@ export default function AnalyticsPage() {
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="stat-card-accent">
-          <h3 className="text-sm font-semibold text-primary/80 mb-2 uppercase">
+          <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
             Total {selectedView === "intention" ? "Intentions" : "Cases"}
           </h3>
-          <div className="text-4xl font-bold text-primary">
+          <div className="text-4xl text-center font-bold text-primary">
             {pivotData.rows?.length || 0}
           </div>
         </div>
 
         <div className="stat-card">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase">
+          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
             Total Channels
           </h3>
-          <div className="text-4xl font-bold text-primary">
+          <div className="text-4xl text-center font-bold text-primary">
             {pivotData.columns?.length || 0}
           </div>
         </div>
 
         <div className="stat-card">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase">
+          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
             Total Records
           </h3>
-          <div className="text-4xl font-bold text-primary">
+          <div className="text-4xl text-center font-bold text-primary">
             {pivotData.grandTotal || 0}
           </div>
         </div>
 
         <div className="stat-card">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2 uppercase">
+          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
             Date Range
           </h3>
-          <div className="text-sm font-bold text-primary">
+          <div className="text-sm text-center font-bold text-primary">
             {filters.dateFrom
               ? new Date(filters.dateFrom).toLocaleDateString("id-ID", {
                   day: "2-digit",

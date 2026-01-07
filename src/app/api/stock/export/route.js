@@ -90,7 +90,7 @@ export async function POST(request) {
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Stock_Export_${new Date().toISOString().split('T')[0]}.xlsx"`
+        'Content-Disposition': `attachment; filename="Stock ${new Date().toISOString().split('T')[0]}.xlsx"`
       }
     });
 

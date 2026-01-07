@@ -180,7 +180,7 @@ export default function StockPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Stock_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.download = `Stock ${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -357,16 +357,16 @@ export default function StockPage() {
       {/* Summary - COMPACT */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="stat-card-accent p-3">
-          <h3 className="text-xs font-semibold text-primary/80 mb-1 uppercase">Total Items</h3>
-          <div className="text-2xl font-bold text-primary">{filteredData.length}</div>
+          <h3 className="text-xs text-center font-semibold text-primary/80 mb-1 uppercase">Total Items</h3>
+          <div className="text-2xl font-bold text-center text-primary">{filteredData.length}</div>
         </div>
         <div className="stat-card p-3">
-          <h3 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Current Page</h3>
-          <div className="text-2xl font-bold text-primary">{currentPage} / {totalPages || 1}</div>
+          <h3 className="text-xs text-center font-semibold text-gray-600 mb-1 uppercase">Current Page</h3>
+          <div className="text-2xl font-bold text-center text-primary">{currentPage} / {totalPages || 1}</div>
         </div>
         <div className="stat-card p-3">
-          <h3 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Showing</h3>
-          <div className="text-2xl font-bold text-primary">{paginatedData.length} of {filteredData.length}</div>
+          <h3 className="text-xs text-center font-semibold text-gray-600 mb-1 uppercase">Showing</h3>
+          <div className="text-2xl font-bold text-center text-primary">{paginatedData.length} of {filteredData.length}</div>
         </div>
       </div>
 
@@ -388,16 +388,16 @@ export default function StockPage() {
               <table className="w-full text-xs">
                 <thead className="bg-primary text-white">
                   <tr>
-                    <th className="px-2 py-2 text-left font-semibold">SKU</th>
-                    <th className="px-2 py-2 text-left font-semibold">Product Name</th>
-                    <th className="px-2 py-2 text-left font-semibold">Category</th>
+                    <th className="px-2 py-2 text-center font-semibold">SKU</th>
+                    <th className="px-2 py-2 text-center font-semibold">Product Name</th>
+                    <th className="px-2 py-2 text-center font-semibold">Category</th>
                     <th className="px-2 py-2 text-center font-semibold">Grade</th>
                     <th className="px-2 py-2 text-center font-semibold">PCA</th>
                     <th className="px-2 py-2 text-center font-semibold">Shopify</th>
                     <th className="px-2 py-2 text-center font-semibold">Threshold</th>
-                    <th className="px-2 py-2 text-right font-semibold">HPP</th>
-                    <th className="px-2 py-2 text-right font-semibold">HPT</th>
-                    <th className="px-2 py-2 text-right font-semibold">HPJ</th>
+                    <th className="px-2 py-2 text-center font-semibold">HPP</th>
+                    <th className="px-2 py-2 text-center font-semibold">HPT</th>
+                    <th className="px-2 py-2 text-center font-semibold">HPJ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -406,9 +406,9 @@ export default function StockPage() {
                       key={index}
                       className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
                     >
-                      <td className="px-2 py-2 font-medium">{item.SKU}</td>
+                      <td className="px-2 text-center py-2 font-medium">{item.SKU}</td>
                       <td className="px-2 py-2">{item.Product_name}</td>
-                      <td className="px-2 py-2">{item.Category}</td>
+                      <td className="px-2 text-center py-2">{item.Category}</td>
                       <td className="px-2 py-2 text-center">
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
                           {item.Grade}
@@ -417,9 +417,9 @@ export default function StockPage() {
                       <td className="px-2 py-2 text-center font-semibold">{item.PCA}</td>
                       <td className="px-2 py-2 text-center">{item.Shopify}</td>
                       <td className="px-2 py-2 text-center">{item.Threshold}</td>
-                      <td className="px-2 py-2 text-right">{item.HPP}</td>
-                      <td className="px-2 py-2 text-right">{item.HPT}</td>
-                      <td className="px-2 py-2 text-right font-semibold text-green-700">{item.HPJ}</td>
+                      <td className="px-2 py-2 text-center">{item.HPP}</td>
+                      <td className="px-2 py-2 text-center">{item.HPT}</td>
+                      <td className="px-2 py-2 text-center font-semibold text-green-700">{item.HPJ}</td>
                     </tr>
                   ))}
                 </tbody>
