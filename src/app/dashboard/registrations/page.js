@@ -11,29 +11,62 @@ export default function RegistrationsPage() {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
-  const [selectedRole, setSelectedRole] = useState({});
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [selectedRegistration, setSelectedRegistration] = useState(null);
+  
+  const [permissions, setPermissions] = useState({
+    dashboard: false,
+    chat_creation: false,
+    analytics: false,
+    warranty: false,
+    stock: false,
+    registrations: false,
+    user_management: false,
+    settings: false,
+  });
+
+  const permissionLabels = {
+    dashboard: 'Dashboard',
+    chat_creation: 'Chat Creation',
+    analytics: 'Analytics',
+    warranty: 'Warranty',
+    stock: 'Stock',
+    registrations: 'Registration Requests',
+    user_management: 'User Management',
+    settings: 'Settings',
+  };
 
   useEffect(() => {
-    // Check if user is super admin
-    if (session && session.user.role !== 'super_admin') {
-      router.push('/dashboard');
-      return;
-    }
-    fetchRegistrations();
+    // PERBAIKAN: Pakai permission check, bukan role check
+    checkPermission();
   }, [session]);
+
+  const checkPermission = async () => {
+    if (!session) return;
+    
+    try {
+      const response = await fetch('/api/user/permissions');
+      const result = await response.json();
+      
+      if (!result.permissions?.registrations) {
+        alert('Anda tidak memiliki akses ke Registration Requests. Hubungi admin untuk akses.');
+        router.push('/dashboard');
+        return;
+      }
+      
+      // Jika punya permission, fetch registrations
+      fetchRegistrations();
+    } catch (error) {
+      console.error('Error checking permission:', error);
+      setLoading(false);
+    }
+  };
 
   const fetchRegistrations = async () => {
     try {
       const response = await fetch('/api/registrations');
       const result = await response.json();
       setRegistrations(result.registrations || []);
-      
-      // Initialize selected roles
-      const roles = {};
-      result.registrations?.forEach(reg => {
-        roles[reg.id] = 'cs'; // Default role
-      });
-      setSelectedRole(roles);
     } catch (error) {
       console.error('Error fetching registrations:', error);
     } finally {
@@ -41,26 +74,50 @@ export default function RegistrationsPage() {
     }
   };
 
-  const handleApprove = async (registrationId) => {
-    const role = selectedRole[registrationId];
-    if (!role) {
-      alert('Please select a role');
+  const openPermissionsModal = (registration) => {
+    setSelectedRegistration(registration);
+    // Set default permissions (all false)
+    setPermissions({
+      dashboard: false,
+      chat_creation: false,
+      analytics: false,
+      warranty: false,
+      stock: false,
+      registrations: false,
+      user_management: false,
+      settings: false,
+    });
+    setShowPermissionsModal(true);
+  };
+
+  const handleApprove = async () => {
+    if (!selectedRegistration) return;
+
+    // Check if at least one permission is selected
+    const hasPermissions = Object.values(permissions).some(p => p === true);
+    if (!hasPermissions) {
+      alert('Please select at least one permission');
       return;
     }
 
-    if (!confirm(`Approve this registration as ${role}?`)) return;
+    if (!confirm(`Approve registration for ${selectedRegistration.name}?`)) return;
 
-    setProcessing(registrationId);
+    setProcessing(selectedRegistration.id);
 
     try {
-      const response = await fetch(`/api/registrations/${registrationId}`, {
+      const response = await fetch(`/api/registrations/${selectedRegistration.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ 
+          role: 'user', // Legacy field, tidak dipakai lagi
+          ...permissions // Send all permissions
+        }),
       });
 
       if (response.ok) {
         alert('Registration approved successfully!');
+        setShowPermissionsModal(false);
+        setSelectedRegistration(null);
         fetchRegistrations();
       } else {
         alert('Failed to approve registration');
@@ -95,6 +152,32 @@ export default function RegistrationsPage() {
     } finally {
       setProcessing(null);
     }
+  };
+
+  const selectAllPermissions = () => {
+    setPermissions({
+      dashboard: true,
+      chat_creation: true,
+      analytics: true,
+      warranty: true,
+      stock: true,
+      registrations: false, // Usually don't give this to new users
+      user_management: false, // Usually don't give this to new users
+      settings: false, // Usually don't give this to new users
+    });
+  };
+
+  const clearAllPermissions = () => {
+    setPermissions({
+      dashboard: false,
+      chat_creation: false,
+      analytics: false,
+      warranty: false,
+      stock: false,
+      registrations: false,
+      user_management: false,
+      settings: false,
+    });
   };
 
   if (loading) {
@@ -141,7 +224,6 @@ export default function RegistrationsPage() {
                   <th className="px-6 py-4 text-left text-sm font-semibold">Username</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Name</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Requested At</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Assign Role</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -163,28 +245,13 @@ export default function RegistrationsPage() {
                       })}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      <select
-                        value={selectedRole[registration.id] || 'cs'}
-                        onChange={(e) => setSelectedRole({
-                          ...selectedRole,
-                          [registration.id]: e.target.value
-                        })}
-                        className="input-field py-2"
-                        disabled={processing === registration.id}
-                      >
-                        <option value="cs">CS</option>
-                        <option value="admin">Admin</option>
-                        <option value="super_admin">Super Admin</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleApprove(registration.id)}
+                          onClick={() => openPermissionsModal(registration)}
                           disabled={processing === registration.id}
                           className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs font-semibold disabled:opacity-50"
                         >
-                          {processing === registration.id ? 'Processing...' : 'Approve'}
+                          {processing === registration.id ? 'Processing...' : 'Set Permissions & Approve'}
                         </button>
                         <button
                           onClick={() => handleReject(registration.id)}
@@ -203,20 +270,116 @@ export default function RegistrationsPage() {
         )}
       </div>
 
+      {/* Permissions Modal */}
+      {showPermissionsModal && selectedRegistration && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-bold text-primary mb-4">
+              Set Permissions
+            </h3>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>User:</strong> {selectedRegistration.name} ({selectedRegistration.username})
+              </p>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={selectAllPermissions}
+                className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded"
+              >
+                Select All (Basic)
+              </button>
+              <button
+                onClick={clearAllPermissions}
+                className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded"
+              >
+                Clear All
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {Object.entries(permissionLabels).map(([key, label]) => (
+                <label key={key} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={permissions[key]}
+                    onChange={(e) => setPermissions({ ...permissions, [key]: e.target.checked })}
+                    className="w-5 h-5 text-accent border-gray-300 rounded focus:ring-accent"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-700 block">{label}</span>
+                    {(key === 'registrations' || key === 'user_management' || key === 'settings') && (
+                      <span className="text-xs text-red-600">Admin only</span>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6">
+              <p className="text-xs text-yellow-800">
+                <strong>⚠️ Note:</strong> User will only see menu items they have permission to access.
+              </p>
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setShowPermissionsModal(false);
+                  setSelectedRegistration(null);
+                }}
+                className="btn-secondary flex-1"
+                disabled={processing}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={processing}
+                className="btn-primary flex-1 disabled:opacity-50"
+              >
+                {processing ? 'Approving...' : 'Approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card p-6 mt-8">
-        <h3 className="text-lg font-bold text-primary mb-4">Role Descriptions</h3>
+        <h3 className="text-lg font-bold text-primary mb-4">Permission Descriptions</h3>
         <div className="space-y-3">
           <div className="flex items-start gap-3">
-            <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold">Super Admin</span>
-            <p className="text-sm text-gray-600">Full access including user management and system settings</p>
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold whitespace-nowrap">Dashboard</span>
+            <p className="text-sm text-gray-600">View chat performance data and statistics</p>
           </div>
           <div className="flex items-start gap-3">
-            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">Admin</span>
-            <p className="text-sm text-gray-600">Can view, create, edit, and delete chat data. No access to settings.</p>
+            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold whitespace-nowrap">Chat Creation</span>
+            <p className="text-sm text-gray-600">Create and import chat performance data</p>
           </div>
           <div className="flex items-start gap-3">
-            <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold">CS</span>
-            <p className="text-sm text-gray-600">Can view and create chat data only. Cannot edit or delete.</p>
+            <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-semibold whitespace-nowrap">Analytics</span>
+            <p className="text-sm text-gray-600">View analytics reports and pivot tables</p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold whitespace-nowrap">Warranty</span>
+            <p className="text-sm text-gray-600">Access warranty management features</p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-semibold whitespace-nowrap">Stock</span>
+            <p className="text-sm text-gray-600">Access stock management features</p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold whitespace-nowrap">Registrations</span>
+            <p className="text-sm text-gray-600">⚠️ Admin only - Approve/reject new user registrations</p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold whitespace-nowrap">User Management</span>
+            <p className="text-sm text-gray-600">⚠️ Admin only - Create, edit, delete users and manage permissions</p>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold whitespace-nowrap">Settings</span>
+            <p className="text-sm text-gray-600">⚠️ Admin only - Manage system settings</p>
           </div>
         </div>
       </div>

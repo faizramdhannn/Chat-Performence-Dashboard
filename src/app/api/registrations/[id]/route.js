@@ -12,13 +12,20 @@ export async function POST(request, { params }) {
 
   try {
     const body = await request.json();
-    const { role } = body;
 
-    if (!role) {
-      return NextResponse.json({ error: 'Role is required' }, { status: 400 });
-    }
+    // Get permissions from body
+    const permissions = {
+      dashboard: body.dashboard ? 'TRUE' : 'FALSE',
+      chat_creation: body.chat_creation ? 'TRUE' : 'FALSE',
+      analytics: body.analytics ? 'TRUE' : 'FALSE',
+      warranty: body.warranty ? 'TRUE' : 'FALSE',
+      stock: body.stock ? 'TRUE' : 'FALSE',
+      registrations: body.registrations ? 'TRUE' : 'FALSE',
+      user_management: body.user_management ? 'TRUE' : 'FALSE',
+      settings: body.settings ? 'TRUE' : 'FALSE',
+    };
 
-    const result = await googleSheets.approveRegistration(params.id, role);
+    const result = await googleSheets.approveRegistration(params.id, 'user', permissions);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Error approving registration:', error);

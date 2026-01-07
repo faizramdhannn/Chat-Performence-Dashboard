@@ -71,7 +71,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:L`,
+        range: `${process.env.USERS_SHEET}!A:M`, // UPDATE: A-M untuk include permissions
       });
 
       const rows = response.data.values;
@@ -111,13 +111,21 @@ class GoogleSheetsService {
         userData.id || Date.now().toString(),
         userData.username,
         hashedPassword,
-        userData.role || 'cs',
-        userData.name || userData.username
+        userData.role || 'user', // Legacy field
+        userData.name || userData.username,
+        userData.dashboard || 'FALSE',
+        userData.chat_creation || 'FALSE',
+        userData.analytics || 'FALSE',
+        userData.warranty || 'FALSE',
+        userData.stock || 'FALSE',
+        userData.registrations || 'FALSE',
+        userData.user_management || 'FALSE',
+        userData.settings || 'FALSE',
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:E`,
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `${process.env.USERS_SHEET}!A:M`, // UPDATE: A-M
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -142,13 +150,21 @@ class GoogleSheetsService {
         userData.id,
         userData.username,
         passwordValue,
-        userData.role,
-        userData.name
+        userData.role || 'user', // Legacy field
+        userData.name,
+        userData.dashboard || 'FALSE',
+        userData.chat_creation || 'FALSE',
+        userData.analytics || 'FALSE',
+        userData.warranty || 'FALSE',
+        userData.stock || 'FALSE',
+        userData.registrations || 'FALSE',
+        userData.user_management || 'FALSE',
+        userData.settings || 'FALSE',
       ]];
 
       const response = await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A${rowIndex}:E${rowIndex}`,
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `${process.env.USERS_SHEET}!A${rowIndex}:M${rowIndex}`, // UPDATE: A-M
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -227,7 +243,7 @@ class GoogleSheetsService {
     }
   }
 
-  async approveRegistration(registrationId, role) {
+  async approveRegistration(registrationId, role, permissions) {
     try {
       const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
       const registrations = await this.getPendingRegistrations();
@@ -237,8 +253,8 @@ class GoogleSheetsService {
         throw new Error('Registration not found');
       }
 
-      // Create user in users sheet
-      await this.createUserFromRegistration(registration, role);
+      // Create user in users sheet with permissions
+      await this.createUserFromRegistration(registration, role, permissions);
 
       // Update registration status
       const values = [[
@@ -264,19 +280,27 @@ class GoogleSheetsService {
     }
   }
 
-  async createUserFromRegistration(registration, role) {
+  async createUserFromRegistration(registration, role, permissions) {
     try {
       const values = [[
         registration.id,
         registration.username,
         registration.password, // Already hashed
-        role,
-        registration.name
+        role || 'user', // Legacy field
+        registration.name,
+        permissions.dashboard || 'FALSE',
+        permissions.chat_creation || 'FALSE',
+        permissions.analytics || 'FALSE',
+        permissions.warranty || 'FALSE',
+        permissions.stock || 'FALSE',
+        permissions.registrations || 'FALSE',
+        permissions.user_management || 'FALSE',
+        permissions.settings || 'FALSE',
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:E`,
+        range: `${process.env.USERS_SHEET}!A:M`, // UPDATE: A-M
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -591,80 +615,80 @@ class GoogleSheetsService {
   }
 
   // ============ STOCK LAST UPDATE ============
-async getStockLastUpdate() {
-  try {
-    const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.usersSpreadsheetId,
-      range: 'stock-updates!A:B',
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) {
-      return { shopify: null, javelin: null, threshold: null };
-    }
-
-    const lastUpdate = {};
-    rows.slice(1).forEach(row => {
-      if (row[0]) {
-        lastUpdate[row[0]] = row[1] || null;
-      }
-    });
-
-    return lastUpdate;
-  } catch (error) {
-    console.error('Error fetching stock last update:', error);
-    return { shopify: null, javelin: null, threshold: null };
-  }
-}
-
-async updateStockLastUpdate(type) {
-  try {
-    // Find row for this type
-    const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.usersSpreadsheetId,
-      range: 'stock-updates!A:A',
-    });
-
-    const rows = response.data.values || [];
-    let rowIndex = -1;
-
-    for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === type) {
-        rowIndex = i + 1; // +1 because sheets are 1-indexed
-        break;
-      }
-    }
-
-    // If not found, append new row
-    if (rowIndex === -1) {
-      await this.sheets.spreadsheets.values.append({
+  async getStockLastUpdate() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
         range: 'stock-updates!A:B',
-        valueInputOption: 'USER_ENTERED',
-        resource: {
-          values: [[type, new Date().toISOString()]]
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return { shopify: null, javelin: null, threshold: null };
+      }
+
+      const lastUpdate = {};
+      rows.slice(1).forEach(row => {
+        if (row[0]) {
+          lastUpdate[row[0]] = row[1] || null;
         }
       });
-    } else {
-      // Update existing row
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.usersSpreadsheetId,
-        range: `stock-updates!B${rowIndex}`,
-        valueInputOption: 'USER_ENTERED',
-        resource: {
-          values: [[new Date().toISOString()]]
-        }
-      });
+
+      return lastUpdate;
+    } catch (error) {
+      console.error('Error fetching stock last update:', error);
+      return { shopify: null, javelin: null, threshold: null };
     }
-
-    return true;
-  } catch (error) {
-    console.error('Error updating stock last update:', error);
-    throw error;
   }
-}
 
-  // ============ HELPER METHODS ============
+  async updateStockLastUpdate(type) {
+    try {
+      // Find row for this type
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: 'stock-updates!A:A',
+      });
+
+      const rows = response.data.values || [];
+      let rowIndex = -1;
+
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] === type) {
+          rowIndex = i + 1; // +1 because sheets are 1-indexed
+          break;
+        }
+      }
+
+      // If not found, append new row
+      if (rowIndex === -1) {
+        await this.sheets.spreadsheets.values.append({
+          spreadsheetId: this.usersSpreadsheetId,
+          range: 'stock-updates!A:B',
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [[type, new Date().toISOString()]]
+          }
+        });
+      } else {
+        // Update existing row
+        await this.sheets.spreadsheets.values.update({
+          spreadsheetId: this.usersSpreadsheetId,
+          range: `stock-updates!B${rowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [[new Date().toISOString()]]
+          }
+        });
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error updating stock last update:', error);
+      throw error;
+    }
+  }
+
+  // ============ STOCK DATA ============
   async getStockData() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
@@ -734,6 +758,7 @@ async updateStockLastUpdate(type) {
     }
   }
 
+  // ============ HELPER METHODS ============
   async deleteRow(spreadsheetId, sheetName, rowIndex) {
     try {
       const sheetMetadata = await this.sheets.spreadsheets.get({

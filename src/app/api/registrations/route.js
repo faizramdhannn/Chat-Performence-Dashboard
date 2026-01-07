@@ -3,11 +3,15 @@ import { requireAuth } from '@/lib/auth';
 import googleSheets from '@/lib/googleSheets';
 
 export async function GET(request) {
-  const auth = await requireAuth('super_admin');
+  // PERBAIKAN: Hanya check apakah user sudah login, tidak check role
+  const auth = await requireAuth();
   
   if (!auth.authorized) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  // Permission check dilakukan di frontend page (registrations-page.js)
+  // API hanya memastikan user sudah authenticated
 
   try {
     console.log('📋 GET /api/registrations - Fetching pending registrations');

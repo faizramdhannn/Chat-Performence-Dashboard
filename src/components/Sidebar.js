@@ -53,10 +53,14 @@ export default function Sidebar() {
   };
 
   const handleMenuClick = (e, item) => {
+    // PERBAIKAN: Cek permission, jika false, PREVENT dan RETURN
     if (!item.permission) {
-      e.preventDefault();
+      e.preventDefault(); // Stop navigation
+      e.stopPropagation(); // Stop event bubbling
       alert('Anda tidak memiliki akses ke fitur ini. Hubungi Faiz jika ingin mengakses.');
+      return false; // Return false to ensure no navigation
     }
+    // Jika permission TRUE, biarkan Link navigate secara normal (tidak perlu return true)
   };
 
   const getAllMenuItems = () => {
@@ -175,34 +179,45 @@ export default function Sidebar() {
         </div>
 
         <nav className="space-y-2">
-          {menuItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={(e) => handleMenuClick(e, item)}
-              className={`block px-4 py-3 rounded-lg transition-all duration-300 relative ${
-                pathname === item.href
-                  ? "bg-accent/20 text-accent"
-                  : item.permission
-                  ? "hover:bg-white/10 text-white"
-                  : "text-white/40 hover:bg-white/5"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span>{item.label}</span>
-                <div className="flex items-center gap-2">
+          {menuItems.map((item) => {
+            // Jika tidak punya permission, tetap render tapi disabled
+            if (!item.permission) {
+              return (
+                <div
+                  key={item.href}
+                  onClick={(e) => handleMenuClick(e, item)}
+                  className="block px-4 py-3 rounded-lg transition-all duration-300 relative text-white/40 hover:bg-white/5 cursor-not-allowed"
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{item.label}</span>
+                    <span className="text-xs">🔒</span>
+                  </div>
+                </div>
+              );
+            }
+
+            // Jika punya permission, render sebagai Link normal
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`block px-4 py-3 rounded-lg transition-all duration-300 relative ${
+                  pathname === item.href
+                    ? "bg-accent/20 text-accent"
+                    : "hover:bg-white/10 text-white"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span>{item.label}</span>
                   {item.badge > 0 && (
                     <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">
                       {item.badge}
                     </span>
                   )}
-                  {!item.permission && (
-                    <span className="text-xs">🔒</span>
-                  )}
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
 
           <div className="pt-4 border-t border-white/10 mt-4">
             <button

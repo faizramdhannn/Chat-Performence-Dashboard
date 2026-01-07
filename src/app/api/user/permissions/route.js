@@ -4,7 +4,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import googleSheets from '@/lib/googleSheets';
 
 export async function GET(request) {
-  // Temporary: bypass requireAuth, langsung ambil session
   const session = await getServerSession(authOptions);
   
   if (!session) {
@@ -34,19 +33,27 @@ export async function GET(request) {
     console.log('  - dashboard:', user.dashboard, '→', isTrue(user.dashboard));
     console.log('  - chat_creation:', user.chat_creation, '→', isTrue(user.chat_creation));
     console.log('  - analytics:', user.analytics, '→', isTrue(user.analytics));
+    console.log('  - warranty:', user.warranty, '→', isTrue(user.warranty));
+    console.log('  - stock:', user.stock, '→', isTrue(user.stock));
+    console.log('  - registrations:', user.registrations, '→', isTrue(user.registrations));
+    console.log('  - user_management:', user.user_management, '→', isTrue(user.user_management));
+    console.log('  - settings:', user.settings, '→', isTrue(user.settings));
 
+    // PENTING: Mapping yang benar antara Google Sheets dan Frontend
+    // Google Sheets menggunakan underscore: user_management, chat_creation
+    // Frontend Sidebar menggunakan camelCase: userManagement, chatCreation
     const permissions = {
       dashboard: isTrue(user.dashboard),
-      chatCreation: isTrue(user.chat_creation),
+      chatCreation: isTrue(user.chat_creation),    // ← chat_creation dari sheets → chatCreation di frontend
       analytics: isTrue(user.analytics),
       warranty: isTrue(user.warranty),
       stock: isTrue(user.stock),
       registrations: isTrue(user.registrations),
-      userManagement: isTrue(user.user_management),
+      userManagement: isTrue(user.user_management), // ← user_management dari sheets → userManagement di frontend
       settings: isTrue(user.settings),
     };
 
-    console.log('✅ Final permissions:', permissions);
+    console.log('✅ Final permissions (camelCase for frontend):', permissions);
 
     return NextResponse.json({ permissions });
   } catch (error) {

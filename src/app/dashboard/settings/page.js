@@ -19,13 +19,30 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    // Check if user is super admin
-    if (session && session.user.role !== 'super_admin') {
-      router.push('/dashboard');
-      return;
-    }
-    fetchSettings();
+    // PERBAIKAN: Pakai permission check, bukan role check
+    checkPermission();
   }, [session]);
+
+  const checkPermission = async () => {
+    if (!session) return;
+    
+    try {
+      const response = await fetch('/api/user/permissions');
+      const result = await response.json();
+      
+      if (!result.permissions?.settings) {
+        alert('Anda tidak memiliki akses ke Settings. Hubungi admin untuk akses.');
+        router.push('/dashboard');
+        return;
+      }
+      
+      // Jika punya permission, fetch settings
+      fetchSettings();
+    } catch (error) {
+      console.error('Error checking permission:', error);
+      setLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -198,7 +215,7 @@ export default function SettingsPage() {
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <h4 className="font-semibold text-yellow-800 mb-2">📋 Sheet Structure Requirements:</h4>
             <ul className="text-sm text-yellow-800 space-y-1 list-disc list-inside">
-              <li><strong>users:</strong> id | username | password | role | name</li>
+              <li><strong>users:</strong> id | username | password | role | name | dashboard | chat_creation | analytics | warranty | stock | registrations | user_management | settings</li>
               <li><strong>settings:</strong> key | value</li>
               <li><strong>master:</strong> product_name | artikel | shift | cs | channel | intention | case | closing_status | chat_status | chat_status2 | follow_up</li>
               <li><strong>data:</strong> date | shift | cs | channel | name | cust | order_number | intention | case | product_name | closing_status | note | chat_status | chat_status2 | follow_up | survey</li>

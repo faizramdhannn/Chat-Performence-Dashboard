@@ -11,22 +11,63 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState(null);
+  
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     name: '',
-    role: 'cs'
+  });
+  
+  const [permissions, setPermissions] = useState({
+    dashboard: false,
+    chat_creation: false,
+    analytics: false,
+    warranty: false,
+    stock: false,
+    registrations: false,
+    user_management: false,
+    settings: false,
   });
 
+  const permissionLabels = {
+    dashboard: 'Dashboard',
+    chat_creation: 'Chat Creation',
+    analytics: 'Analytics',
+    warranty: 'Warranty',
+    stock: 'Stock',
+    registrations: 'Registration Requests',
+    user_management: 'User Management',
+    settings: 'Settings',
+  };
+
   useEffect(() => {
-    // Check if user is super admin
-    if (session && session.user.role !== 'super_admin') {
-      router.push('/dashboard');
-      return;
-    }
-    fetchUsers();
+    // PERBAIKAN: Pakai permission check, bukan role check
+    checkPermission();
   }, [session]);
+
+  const checkPermission = async () => {
+    if (!session) return;
+    
+    try {
+      const response = await fetch('/api/user/permissions');
+      const result = await response.json();
+      
+      if (!result.permissions?.userManagement) {
+        alert('Anda tidak memiliki akses ke User Management. Hubungi admin untuk akses.');
+        router.push('/dashboard');
+        return;
+      }
+      
+      // Jika punya permission, fetch users
+      fetchUsers();
+    } catch (error) {
+      console.error('Error checking permission:', error);
+      setLoading(false);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -48,10 +89,20 @@ export default function UsersPage() {
       const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
       const method = editingUser ? 'PUT' : 'POST';
 
+      // Combine formData with permissions
+      const dataToSend = {
+        ...formData,
+        ...permissions
+      };
+
+      if (editingUser) {
+        Object.assign(dataToSend, editingUser);
+      }
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingUser ? { ...editingUser, ...formData } : formData),
+        body: JSON.stringify(dataToSend),
       });
 
       const result = await response.json();
@@ -62,6 +113,37 @@ export default function UsersPage() {
         resetForm();
       } else {
         alert(result.error || 'Gagal menyimpan user');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Terjadi kesalahan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePermissionsSave = async () => {
+    if (!selectedUserForPermissions) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/users/${selectedUserForPermissions.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...selectedUserForPermissions,
+          ...permissions
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        fetchUsers();
+        setShowPermissionsModal(false);
+        setSelectedUserForPermissions(null);
+      } else {
+        alert(result.error || 'Gagal menyimpan permissions');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -93,7 +175,16 @@ export default function UsersPage() {
       username: '',
       password: '',
       name: '',
-      role: 'cs'
+    });
+    setPermissions({
+      dashboard: false,
+      chat_creation: false,
+      analytics: false,
+      warranty: false,
+      stock: false,
+      registrations: false,
+      user_management: false,
+      settings: false,
     });
     setEditingUser(null);
   };
@@ -104,7 +195,17 @@ export default function UsersPage() {
       username: user.username,
       password: '',
       name: user.name,
-      role: user.role
+    });
+    // Load existing permissions
+    setPermissions({
+      dashboard: user.dashboard === 'TRUE' || user.dashboard === true,
+      chat_creation: user.chat_creation === 'TRUE' || user.chat_creation === true,
+      analytics: user.analytics === 'TRUE' || user.analytics === true,
+      warranty: user.warranty === 'TRUE' || user.warranty === true,
+      stock: user.stock === 'TRUE' || user.stock === true,
+      registrations: user.registrations === 'TRUE' || user.registrations === true,
+      user_management: user.user_management === 'TRUE' || user.user_management === true,
+      settings: user.settings === 'TRUE' || user.settings === true,
     });
     setShowModal(true);
   };
@@ -112,6 +213,35 @@ export default function UsersPage() {
   const openCreateModal = () => {
     resetForm();
     setShowModal(true);
+  };
+
+  const openPermissionsModal = (user) => {
+    setSelectedUserForPermissions(user);
+    setPermissions({
+      dashboard: user.dashboard === 'TRUE' || user.dashboard === true,
+      chat_creation: user.chat_creation === 'TRUE' || user.chat_creation === true,
+      analytics: user.analytics === 'TRUE' || user.analytics === true,
+      warranty: user.warranty === 'TRUE' || user.warranty === true,
+      stock: user.stock === 'TRUE' || user.stock === true,
+      registrations: user.registrations === 'TRUE' || user.registrations === true,
+      user_management: user.user_management === 'TRUE' || user.user_management === true,
+      settings: user.settings === 'TRUE' || user.settings === true,
+    });
+    setShowPermissionsModal(true);
+  };
+
+  const getPermissionsSummary = (user) => {
+    const activePermissions = [];
+    if (user.dashboard === 'TRUE' || user.dashboard === true) activePermissions.push('Dashboard');
+    if (user.chat_creation === 'TRUE' || user.chat_creation === true) activePermissions.push('Chat');
+    if (user.analytics === 'TRUE' || user.analytics === true) activePermissions.push('Analytics');
+    if (user.warranty === 'TRUE' || user.warranty === true) activePermissions.push('Warranty');
+    if (user.stock === 'TRUE' || user.stock === true) activePermissions.push('Stock');
+    if (user.registrations === 'TRUE' || user.registrations === true) activePermissions.push('Registrations');
+    if (user.user_management === 'TRUE' || user.user_management === true) activePermissions.push('Users');
+    if (user.settings === 'TRUE' || user.settings === true) activePermissions.push('Settings');
+    
+    return activePermissions.length > 0 ? activePermissions.join(', ') : 'No access';
   };
 
   if (loading) {
@@ -146,7 +276,7 @@ export default function UsersPage() {
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-semibold">Username</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold">Name</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold">Role</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold">Permissions</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
               </tr>
             </thead>
@@ -159,17 +289,18 @@ export default function UsersPage() {
                   <td className="px-6 py-4 text-sm font-medium">{user.username}</td>
                   <td className="px-6 py-4 text-sm">{user.name}</td>
                   <td className="px-6 py-4 text-sm">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      user.role === 'super_admin' ? 'bg-purple-100 text-purple-800' :
-                      user.role === 'admin' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {user.role === 'super_admin' ? 'Super Admin' :
-                       user.role === 'admin' ? 'Admin' : 'CS'}
-                    </span>
+                    <div className="text-xs text-gray-600 max-w-xs truncate">
+                      {getPermissionsSummary(user)}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => openPermissionsModal(user)}
+                        className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold"
+                      >
+                        Permissions
+                      </button>
                       <button
                         onClick={() => openEditModal(user)}
                         className="bg-primary text-white px-3 py-1 rounded-lg hover:bg-[#164d6e] transition-colors text-xs font-semibold"
@@ -191,10 +322,10 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Create/Edit User Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+          <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-2xl font-bold text-primary mb-6">
               {editingUser ? 'Edit User' : 'Create New User'}
             </h3>
@@ -240,20 +371,21 @@ export default function UsersPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-primary mb-2">
-                  Role *
-                </label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="input-field"
-                  required
-                >
-                  <option value="cs">CS</option>
-                  <option value="admin">Admin</option>
-                  <option value="super_admin">Super Admin</option>
-                </select>
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-primary mb-3">Permissions</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(permissionLabels).map(([key, label]) => (
+                    <label key={key} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                      <input
+                        type="checkbox"
+                        checked={permissions[key]}
+                        onChange={(e) => setPermissions({ ...permissions, [key]: e.target.checked })}
+                        className="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent"
+                      />
+                      <span className="text-sm text-gray-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div className="flex gap-4 pt-4">
@@ -276,6 +408,53 @@ export default function UsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Permissions Modal */}
+      {showPermissionsModal && selectedUserForPermissions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+            <h3 className="text-2xl font-bold text-primary mb-4">
+              Manage Permissions
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              User: <strong>{selectedUserForPermissions.name}</strong> ({selectedUserForPermissions.username})
+            </p>
+
+            <div className="space-y-3 mb-6">
+              {Object.entries(permissionLabels).map(([key, label]) => (
+                <label key={key} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={permissions[key]}
+                    onChange={(e) => setPermissions({ ...permissions, [key]: e.target.checked })}
+                    className="w-5 h-5 text-accent border-gray-300 rounded focus:ring-accent"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setShowPermissionsModal(false);
+                  setSelectedUserForPermissions(null);
+                }}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePermissionsSave}
+                disabled={loading}
+                className="btn-primary flex-1 disabled:opacity-50"
+              >
+                {loading ? 'Saving...' : 'Save Permissions'}
+              </button>
+            </div>
           </div>
         </div>
       )}

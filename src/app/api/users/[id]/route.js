@@ -43,7 +43,24 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const result = await googleSheets.updateUser(user.rowIndex, body);
+    // Update user data with permissions
+    const updatedData = {
+      id: user.id,
+      username: body.username || user.username,
+      password: body.password || user.password, // If no new password, keep old
+      name: body.name || user.name,
+      role: body.role || user.role || 'user', // Legacy field
+      dashboard: body.dashboard !== undefined ? (body.dashboard ? 'TRUE' : 'FALSE') : user.dashboard,
+      chat_creation: body.chat_creation !== undefined ? (body.chat_creation ? 'TRUE' : 'FALSE') : user.chat_creation,
+      analytics: body.analytics !== undefined ? (body.analytics ? 'TRUE' : 'FALSE') : user.analytics,
+      warranty: body.warranty !== undefined ? (body.warranty ? 'TRUE' : 'FALSE') : user.warranty,
+      stock: body.stock !== undefined ? (body.stock ? 'TRUE' : 'FALSE') : user.stock,
+      registrations: body.registrations !== undefined ? (body.registrations ? 'TRUE' : 'FALSE') : user.registrations,
+      user_management: body.user_management !== undefined ? (body.user_management ? 'TRUE' : 'FALSE') : user.user_management,
+      settings: body.settings !== undefined ? (body.settings ? 'TRUE' : 'FALSE') : user.settings,
+    };
+
+    const result = await googleSheets.updateUser(user.rowIndex, updatedData);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Error updating user:', error);
