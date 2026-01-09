@@ -164,7 +164,7 @@ export default function DashboardPage() {
         {/* Today */}
         <div className="card p-3 bg-gradient-to-br from-green-50 to-green-100">
           <div className="text-center mb-2">
-            <h3 className="text-xs font-bold text-primary">📅 Hari Ini</h3>
+            <h3 className="text-xs font-bold text-primary">Today</h3>
             <div className="text-xs font-semibold text-gray-700">{schedule.today?.date}</div>
           </div>
           {schedule.today ? (
@@ -204,7 +204,7 @@ export default function DashboardPage() {
         {/* Tomorrow */}
         <div className="card p-3 bg-gradient-to-br from-blue-50 to-blue-100">
           <div className="text-center mb-2">
-            <h3 className="text-xs font-bold text-primary">📅 Besok</h3>
+            <h3 className="text-xs font-bold text-primary">Tomorrow</h3>
             <div className="text-xs font-semibold text-gray-700">{schedule.tomorrow?.date}</div>
           </div>
           {schedule.tomorrow ? (
@@ -244,7 +244,7 @@ export default function DashboardPage() {
         {/* Day After Tomorrow */}
         <div className="card p-3 bg-gradient-to-br from-purple-50 to-purple-100">
           <div className="text-center mb-2">
-            <h3 className="text-xs font-bold text-primary">📅 Lusa</h3>
+            <h3 className="text-xs font-bold text-primary">After Tomorrow</h3>
             <div className="text-xs font-semibold text-gray-700">{schedule.dayAfterTomorrow?.date}</div>
           </div>
           {schedule.dayAfterTomorrow ? (
