@@ -388,8 +388,9 @@ export default function StockPage() {
   const paginatedData = filteredData.slice(startIndex, endIndex);
 
   // Permission checks
+  const canViewStock = permissions.stock; // User dengan stock permission bisa lihat
   const canViewMaster = permissions.stock; // User dengan stock permission bisa lihat Master
-  const canManageMaster = permissions.registrations; // User dengan registrations permission bisa edit/delete/add
+  const canManageMaster = permissions.registrations; // HANYA user dengan registrations permission bisa edit/delete/add
 
   return (
     <div>
@@ -448,7 +449,7 @@ export default function StockPage() {
               >
                 📦 Stock
               </button>
-              {canManageMaster && (
+              {canViewMaster && (
                 <button
                   onClick={() => {
                     setSelectedView('master');
@@ -467,7 +468,7 @@ export default function StockPage() {
             </div>
           </div>
 
-          {/* Add button untuk Master view */}
+          {/* Add button untuk Master view - HANYA untuk user dengan registrations permission */}
           {selectedView === 'master' && canManageMaster && (
             <button
               onClick={handleAddNew}
@@ -479,7 +480,23 @@ export default function StockPage() {
         </div>
       </div>
 
-      {/* Form Add/Edit Master Stock (hanya muncul di Master view) */}
+      {/* Permission Notice untuk Master View */}
+      {selectedView === 'master' && !canManageMaster && (
+        <div className="card p-4 mb-6 bg-blue-50 border-2 border-blue-200">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">ℹ️</span>
+            <div>
+              <h3 className="font-semibold text-blue-800 mb-1">View Only Mode</h3>
+              <p className="text-sm text-blue-700">
+                Anda dapat melihat data Master Stock, tetapi tidak dapat mengedit, menghapus, atau menambah data. 
+                Hubungi admin untuk mendapatkan akses penuh.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Form Add/Edit Master Stock - HANYA muncul jika canManageMaster */}
       {selectedView === 'master' && showMasterForm && canManageMaster && (
         <div className="card p-6 mb-6 bg-purple-50 border-2 border-purple-200">
           <div className="flex justify-between items-center mb-4">
@@ -671,7 +688,7 @@ export default function StockPage() {
           <p className="text-xs text-gray-600 mt-1">
             {selectedView === 'stock' 
               ? 'Data from stock sheet - Sorted by Grade (A-Z), then PCA (High to Low)'
-              : 'Data from master-stock sheet - Master data untuk SKU, Product, Category, Grade, HPP, HPJ'
+              : `Master data untuk SKU, Product, Category, Grade, HPP, HPJ ${!canManageMaster ? '(View Only)' : ''}`
             }
           </p>
         </div>
@@ -680,7 +697,7 @@ export default function StockPage() {
           <div className="text-center py-12">
             <h3 className="text-lg font-semibold text-gray-700 mb-2">No Data Found</h3>
             <p className="text-sm text-gray-500">
-              {selectedView === 'master' 
+              {selectedView === 'master' && canManageMaster
                 ? 'Click "Add New Master Stock" to add data'
                 : 'Try adjusting your filters or import data'
               }
