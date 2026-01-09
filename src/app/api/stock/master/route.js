@@ -1,4 +1,3 @@
-// File: src/app/api/stock/master/route.js
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import googleSheets from '@/lib/googleSheets';

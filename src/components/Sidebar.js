@@ -218,15 +218,6 @@ export default function Sidebar() {
               </Link>
             );
           })}
-
-          <div className="pt-4 border-t border-white/10 mt-4">
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full text-left px-4 py-3 rounded-lg hover:bg-red-900 text-white transition-all duration-300"
-            >
-              Logout
-            </button>
-          </div>
         </nav>
       </aside>
     </>

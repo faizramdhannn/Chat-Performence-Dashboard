@@ -8,7 +8,15 @@ import Header from '@/components/Header';
 export default function StockPage() {
   const router = useRouter();
   const { data: session } = useSession();
+  const [permissions, setPermissions] = useState({});
+  
+  // View selector: 'stock' atau 'master'
+  const [selectedView, setSelectedView] = useState('stock');
+  
+  // Data states
   const [stockData, setStockData] = useState([]);
+  const [masterStockData, setMasterStockData] = useState([]);
+  
   const [categories, setCategories] = useState([]);
   const [grades, setGrades] = useState([]);
   const [hpjValues, setHpjValues] = useState([]);
@@ -22,6 +30,19 @@ export default function StockPage() {
   });
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  
+  // Edit/Add Master Stock
+  const [editingMaster, setEditingMaster] = useState(null);
+  const [showMasterForm, setShowMasterForm] = useState(false);
+  const [masterForm, setMasterForm] = useState({
+    SKU: '',
+    Product_name: '',
+    Category: '',
+    Grade: '',
+    HPP: '',
+    HPJ: ''
+  });
+  const [savingMaster, setSavingMaster] = useState(false);
   
   // Last update
   const [lastUpdate, setLastUpdate] = useState({
@@ -46,6 +67,14 @@ export default function StockPage() {
     checkPermission();
   }, [session]);
 
+  useEffect(() => {
+    if (selectedView === 'stock') {
+      fetchStockData();
+    } else {
+      fetchMasterStockData();
+    }
+  }, [selectedView]);
+
   const checkPermission = async () => {
     if (!session) return;
     
@@ -59,11 +88,11 @@ export default function StockPage() {
         return;
       }
       
+      setPermissions(result.permissions || {});
       fetchStockData();
       fetchLastUpdate();
     } catch (error) {
       console.error('Error checking permission:', error);
-      setLoading(false);
     }
   };
 
@@ -72,24 +101,36 @@ export default function StockPage() {
       const response = await fetch('/api/stock');
       const result = await response.json();
       
-      // Filter out items with empty Product_name
       const validData = (result.data || []).filter(item => 
         item.Product_name && item.Product_name.trim() !== ''
       );
       
       setStockData(validData);
-      
-      // Extract unique values for filters
-      const uniqueCategories = [...new Set(validData.map(item => item.Category).filter(Boolean))].sort();
-      const uniqueGrades = [...new Set(validData.map(item => item.Grade).filter(Boolean))].sort();
-      const uniqueHpj = [...new Set(validData.map(item => item.HPJ).filter(Boolean))].sort();
-      
-      setCategories(uniqueCategories);
-      setGrades(uniqueGrades);
-      setHpjValues(uniqueHpj);
+      updateFilterOptions(validData);
     } catch (error) {
       console.error('Error fetching stock data:', error);
     }
+  };
+
+  const fetchMasterStockData = async () => {
+    try {
+      const response = await fetch('/api/stock/master');
+      const result = await response.json();
+      setMasterStockData(result.data || []);
+      updateFilterOptions(result.data || []);
+    } catch (error) {
+      console.error('Error fetching master stock data:', error);
+    }
+  };
+
+  const updateFilterOptions = (data) => {
+    const uniqueCategories = [...new Set(data.map(item => item.Category).filter(Boolean))].sort();
+    const uniqueGrades = [...new Set(data.map(item => item.Grade).filter(Boolean))].sort();
+    const uniqueHpj = [...new Set(data.map(item => item.HPJ).filter(Boolean))].sort();
+    
+    setCategories(uniqueCategories);
+    setGrades(uniqueGrades);
+    setHpjValues(uniqueHpj);
   };
 
   const fetchLastUpdate = async () => {
@@ -193,6 +234,97 @@ export default function StockPage() {
     }
   };
 
+  const handleAddNew = () => {
+    setEditingMaster(null);
+    setMasterForm({
+      SKU: '',
+      Product_name: '',
+      Category: '',
+      Grade: '',
+      HPP: '',
+      HPJ: ''
+    });
+    setShowMasterForm(true);
+  };
+
+  const handleEdit = (item) => {
+    setEditingMaster(item);
+    setMasterForm({
+      SKU: item.SKU || '',
+      Product_name: item.Product_name || '',
+      Category: item.Category || '',
+      Grade: item.Grade || '',
+      HPP: item.HPP || '',
+      HPJ: item.HPJ || ''
+    });
+    setShowMasterForm(true);
+  };
+
+  const handleSaveMaster = async () => {
+    if (!masterForm.SKU || !masterForm.Product_name) {
+      alert('SKU dan Product Name wajib diisi');
+      return;
+    }
+
+    setSavingMaster(true);
+
+    try {
+      const url = editingMaster 
+        ? `/api/stock/master/${editingMaster.rowIndex}`
+        : '/api/stock/master';
+      
+      const method = editingMaster ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(masterForm),
+      });
+
+      if (response.ok) {
+        alert(editingMaster ? 'Data berhasil diupdate' : 'Data berhasil ditambahkan');
+        setShowMasterForm(false);
+        setEditingMaster(null);
+        setMasterForm({
+          SKU: '',
+          Product_name: '',
+          Category: '',
+          Grade: '',
+          HPP: '',
+          HPJ: ''
+        });
+        fetchMasterStockData();
+      } else {
+        alert('Gagal menyimpan data');
+      }
+    } catch (error) {
+      console.error('Error saving master stock:', error);
+      alert('Gagal menyimpan data');
+    } finally {
+      setSavingMaster(false);
+    }
+  };
+
+  const handleDeleteMaster = async (rowIndex) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
+
+    try {
+      const response = await fetch(`/api/stock/master/${rowIndex}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        alert('Data berhasil dihapus');
+        fetchMasterStockData();
+      } else {
+        alert('Gagal menghapus data');
+      }
+    } catch (error) {
+      console.error('Error deleting master stock:', error);
+      alert('Gagal menghapus data');
+    }
+  };
+
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setCurrentPage(1);
@@ -223,8 +355,11 @@ export default function StockPage() {
     }
   };
 
+  // Get current data based on view
+  const currentData = selectedView === 'stock' ? stockData : masterStockData;
+
   // Filter and sort data
-  const filteredData = stockData.filter(item => {
+  const filteredData = currentData.filter(item => {
     if (filters.category !== 'all' && item.Category !== filters.category) return false;
     if (filters.grade !== 'all' && item.Grade !== filters.grade) return false;
     if (filters.hpj !== 'all' && item.HPJ !== filters.hpj) return false;
@@ -238,11 +373,9 @@ export default function StockPage() {
     
     return true;
   }).sort((a, b) => {
-    // Sort by Grade A-Z
     const gradeCompare = String(a.Grade || '').localeCompare(String(b.Grade || ''));
     if (gradeCompare !== 0) return gradeCompare;
     
-    // Then by PCA (descending - dari besar ke kecil)
     const pcaA = parseFloat(a.PCA) || 0;
     const pcaB = parseFloat(b.PCA) || 0;
     return pcaB - pcaA;
@@ -254,20 +387,26 @@ export default function StockPage() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedData = filteredData.slice(startIndex, endIndex);
 
+  // Permission checks
+  const canViewMaster = permissions.stock; // User dengan stock permission bisa lihat Master
+  const canManageMaster = permissions.registrations; // User dengan registrations permission bisa edit/delete/add
+
   return (
     <div>
       <Header title="Stock Management" />
 
-      {/* Import/Export Section - COMPACT */}
+      {/* Import/Export Section */}
       <div className="card p-4 mb-6">
         <div className="flex justify-between items-center gap-4">
           <div className="flex gap-3">
-            <button
-              onClick={openImportModal}
-              className="btn-primary text-sm px-4 py-2"
-            >
-              📥 Import Data
-            </button>
+            {canManageMaster && (
+              <button
+                onClick={openImportModal}
+                className="btn-primary text-sm px-4 py-2"
+              >
+                📥 Import Data
+              </button>
+            )}
             <button
               onClick={handleExport}
               disabled={exporting}
@@ -289,7 +428,160 @@ export default function StockPage() {
         </div>
       </div>
 
-      {/* Filters - COMPACT */}
+      {/* View Selector: Stock vs Master */}
+      <div className="card p-6 mb-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-primary mb-2">Select Data Source</h2>
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setSelectedView('stock');
+                  setCurrentPage(1);
+                  setShowMasterForm(false);
+                }}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  selectedView === 'stock'
+                    ? 'bg-accent text-primary shadow-lg'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                📦 Stock
+              </button>
+              {canManageMaster && (
+                <button
+                  onClick={() => {
+                    setSelectedView('master');
+                    setCurrentPage(1);
+                    setShowMasterForm(false);
+                  }}
+                  className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                    selectedView === 'master'
+                      ? 'bg-accent text-primary shadow-lg'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  🔧 Master Stock
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Add button untuk Master view */}
+          {selectedView === 'master' && canManageMaster && (
+            <button
+              onClick={handleAddNew}
+              className="btn-primary"
+            >
+              + Add New Master Stock
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Form Add/Edit Master Stock (hanya muncul di Master view) */}
+      {selectedView === 'master' && showMasterForm && canManageMaster && (
+        <div className="card p-6 mb-6 bg-purple-50 border-2 border-purple-200">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-bold text-primary">
+              {editingMaster ? '✏️ Edit Master Stock' : '➕ Add New Master Stock'}
+            </h3>
+            <button
+              onClick={() => {
+                setShowMasterForm(false);
+                setEditingMaster(null);
+              }}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-semibold text-primary mb-2">SKU *</label>
+              <input
+                type="text"
+                value={masterForm.SKU}
+                onChange={(e) => setMasterForm({ ...masterForm, SKU: e.target.value })}
+                className="input-field"
+                placeholder="SKU"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-primary mb-2">Product Name *</label>
+              <input
+                type="text"
+                value={masterForm.Product_name}
+                onChange={(e) => setMasterForm({ ...masterForm, Product_name: e.target.value })}
+                className="input-field"
+                placeholder="Product Name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-primary mb-2">Category</label>
+              <input
+                type="text"
+                value={masterForm.Category}
+                onChange={(e) => setMasterForm({ ...masterForm, Category: e.target.value })}
+                className="input-field"
+                placeholder="Category"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-primary mb-2">Grade</label>
+              <input
+                type="text"
+                value={masterForm.Grade}
+                onChange={(e) => setMasterForm({ ...masterForm, Grade: e.target.value })}
+                className="input-field"
+                placeholder="Grade"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-primary mb-2">HPP</label>
+              <input
+                type="text"
+                value={masterForm.HPP}
+                onChange={(e) => setMasterForm({ ...masterForm, HPP: e.target.value })}
+                className="input-field"
+                placeholder="HPP"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-primary mb-2">HPJ</label>
+              <input
+                type="text"
+                value={masterForm.HPJ}
+                onChange={(e) => setMasterForm({ ...masterForm, HPJ: e.target.value })}
+                className="input-field"
+                placeholder="HPJ"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setShowMasterForm(false);
+                setEditingMaster(null);
+              }}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveMaster}
+              disabled={savingMaster}
+              className="btn-primary disabled:opacity-50"
+            >
+              {savingMaster ? 'Saving...' : editingMaster ? 'Update' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
       <div className="card p-4 mb-6">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-lg font-bold text-primary">Filters</h2>
@@ -354,7 +646,7 @@ export default function StockPage() {
         </div>
       </div>
 
-      {/* Summary - COMPACT */}
+      {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="stat-card-accent p-3">
           <h3 className="text-xs text-center font-semibold text-primary/80 mb-1 uppercase">Total Items</h3>
@@ -370,17 +662,29 @@ export default function StockPage() {
         </div>
       </div>
 
-      {/* Stock Table - COMPACT */}
+      {/* Data Table */}
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-primary">Stock Data</h2>
-          <p className="text-xs text-gray-600 mt-1">Sorted by Grade (A-Z), then PCA (High to Low)</p>
+          <h2 className="text-lg font-bold text-primary">
+            {selectedView === 'stock' ? '📦 Stock Data' : '🔧 Master Stock Data'}
+          </h2>
+          <p className="text-xs text-gray-600 mt-1">
+            {selectedView === 'stock' 
+              ? 'Data from stock sheet - Sorted by Grade (A-Z), then PCA (High to Low)'
+              : 'Data from master-stock sheet - Master data untuk SKU, Product, Category, Grade, HPP, HPJ'
+            }
+          </p>
         </div>
 
         {paginatedData.length === 0 ? (
           <div className="text-center py-12">
             <h3 className="text-lg font-semibold text-gray-700 mb-2">No Data Found</h3>
-            <p className="text-sm text-gray-500">Try adjusting your filters or import data</p>
+            <p className="text-sm text-gray-500">
+              {selectedView === 'master' 
+                ? 'Click "Add New Master Stock" to add data'
+                : 'Try adjusting your filters or import data'
+              }
+            </p>
           </div>
         ) : (
           <>
@@ -392,12 +696,22 @@ export default function StockPage() {
                     <th className="px-2 py-2 text-center font-semibold">Product Name</th>
                     <th className="px-2 py-2 text-center font-semibold">Category</th>
                     <th className="px-2 py-2 text-center font-semibold">Grade</th>
-                    <th className="px-2 py-2 text-center font-semibold">PCA</th>
-                    <th className="px-2 py-2 text-center font-semibold">Shopify</th>
-                    <th className="px-2 py-2 text-center font-semibold">Threshold</th>
-                    <th className="px-2 py-2 text-center font-semibold">HPP</th>
-                    <th className="px-2 py-2 text-center font-semibold">HPT</th>
+                    {selectedView === 'stock' && (
+                      <>
+                        <th className="px-2 py-2 text-center font-semibold">PCA</th>
+                        <th className="px-2 py-2 text-center font-semibold">Shopify</th>
+                        <th className="px-2 py-2 text-center font-semibold">Threshold</th>
+                        <th className="px-2 py-2 text-center font-semibold">HPP</th>
+                        <th className="px-2 py-2 text-center font-semibold">HPT</th>
+                      </>
+                    )}
+                    {selectedView === 'master' && (
+                      <th className="px-2 py-2 text-center font-semibold">HPP</th>
+                    )}
                     <th className="px-2 py-2 text-center font-semibold">HPJ</th>
+                    {selectedView === 'master' && canManageMaster && (
+                      <th className="px-2 py-2 text-center font-semibold">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -414,19 +728,44 @@ export default function StockPage() {
                           {item.Grade}
                         </span>
                       </td>
-                      <td className="px-2 py-2 text-center font-semibold">{item.PCA}</td>
-                      <td className="px-2 py-2 text-center">{item.Shopify}</td>
-                      <td className="px-2 py-2 text-center">{item.Threshold}</td>
-                      <td className="px-2 py-2 text-center">{item.HPP}</td>
-                      <td className="px-2 py-2 text-center">{item.HPT}</td>
+                      {selectedView === 'stock' && (
+                        <>
+                          <td className="px-2 py-2 text-center font-semibold">{item.PCA}</td>
+                          <td className="px-2 py-2 text-center">{item.Shopify}</td>
+                          <td className="px-2 py-2 text-center">{item.Threshold}</td>
+                          <td className="px-2 py-2 text-center">{item.HPP}</td>
+                          <td className="px-2 py-2 text-center">{item.HPT}</td>
+                        </>
+                      )}
+                      {selectedView === 'master' && (
+                        <td className="px-2 py-2 text-center">{item.HPP}</td>
+                      )}
                       <td className="px-2 py-2 text-center font-semibold text-green-700">{item.HPJ}</td>
+                      {selectedView === 'master' && canManageMaster && (
+                        <td className="px-2 py-2 text-center">
+                          <div className="flex gap-1 justify-center">
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMaster(item.rowIndex)}
+                              className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+                            >
+                              Del
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination - COMPACT */}
+            {/* Pagination */}
             {totalPages > 1 && (
               <div className="p-4 border-t border-gray-200 flex justify-between items-center">
                 <button
@@ -478,7 +817,7 @@ export default function StockPage() {
         )}
       </div>
 
-      {/* Import Modal - 3 File Choosers */}
+      {/* Import Modal */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4">
@@ -488,7 +827,6 @@ export default function StockPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Shopify Upload */}
               <div>
                 <label className="block text-sm font-semibold text-primary mb-2">
                   📦 Shopify Data
@@ -506,7 +844,6 @@ export default function StockPage() {
                 )}
               </div>
 
-              {/* Javelin Upload */}
               <div>
                 <label className="block text-sm font-semibold text-primary mb-2">
                   🎯 Javelin Data
@@ -524,7 +861,6 @@ export default function StockPage() {
                 )}
               </div>
 
-              {/* Threshold Upload */}
               <div>
                 <label className="block text-sm font-semibold text-primary mb-2">
                   ⚡ Threshold Data
