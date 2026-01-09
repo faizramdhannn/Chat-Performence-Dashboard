@@ -41,6 +41,9 @@ class GoogleSheetsService {
     // Warranty spreadsheet
     this.warrantySpreadsheetId = process.env.WARRANTY_SPREADSHEET_ID;
     
+    // CS Nilai spreadsheet
+    this.csNilaiSpreadsheetId = process.env.CS_NILAI_SPREADSHEET_ID;
+    
     // Simple cache
     this.cache = {
       data: null,
@@ -582,6 +585,64 @@ class GoogleSheetsService {
     }
   }
 
+  // ============ SCHEDULE DATA ============
+  async getScheduleData() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId, // Main spreadsheet
+        range: 'Jadwal CS!A:J',
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || '';
+        });
+        return obj;
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching schedule data:', error);
+      throw error;
+    }
+  }
+
+  // ============ NILAI CS DATA ============
+  async getNilaiData() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.csNilaiSpreadsheetId,
+        range: 'rekap_nilai!A:E',
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || '';
+        });
+        return obj;
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching nilai data:', error);
+      throw error;
+    }
+  }
+
   // ============ WARRANTY DATA ============
   async getWarrantyData() {
     try {
@@ -644,92 +705,93 @@ class GoogleSheetsService {
     }
   }
 
-async getMasterStockData() {
-  try {
-    const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.usersSpreadsheetId,
-      range: 'master-stock!A:J',
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) {
-      return [];
-    }
-
-    const headers = rows[0]; // SKU, Product_name, Category, Grade, HPP, HPJ
-    const data = rows.slice(1).map((row, index) => {
-      const obj = { rowIndex: index + 2 };
-      headers.forEach((header, i) => {
-        obj[header] = row[i] || '';
+  // ============ MASTER STOCK DATA ============
+  async getMasterStockData() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: 'master-stock!A:J',
       });
-      return obj;
-    });
 
-    return data;
-  } catch (error) {
-    console.error('Error fetching master stock data:', error);
-    throw error;
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0]; // SKU, Product_name, Category, Grade, HPP, HPJ
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || '';
+        });
+        return obj;
+      });
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching master stock data:', error);
+      throw error;
+    }
   }
-}
 
-async addMasterStockData(data) {
-  try {
-    const values = [[
-      data.SKU || '',
-      data.Product_name || '',
-      data.Category || '',
-      data.Grade || '',
-      data.HPP || '',
-      data.HPJ || ''
-    ]];
+  async addMasterStockData(data) {
+    try {
+      const values = [[
+        data.SKU || '',
+        data.Product_name || '',
+        data.Category || '',
+        data.Grade || '',
+        data.HPP || '',
+        data.HPJ || ''
+      ]];
 
-    const response = await this.sheets.spreadsheets.values.append({
-      spreadsheetId: this.usersSpreadsheetId,
-      range: 'master-stock!A:J',
-      valueInputOption: 'USER_ENTERED',
-      resource: { values },
-    });
+      const response = await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: 'master-stock!A:J',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
 
-    return response.data;
-  } catch (error) {
-    console.error('Error adding master stock data:', error);
-    throw error;
+      return response.data;
+    } catch (error) {
+      console.error('Error adding master stock data:', error);
+      throw error;
+    }
   }
-}
 
-async updateMasterStockData(rowIndex, data) {
-  try {
-    const values = [[
-      data.SKU || '',
-      data.Product_name || '',
-      data.Category || '',
-      data.Grade || '',
-      data.HPP || '',
-      data.HPJ || ''
-    ]];
+  async updateMasterStockData(rowIndex, data) {
+    try {
+      const values = [[
+        data.SKU || '',
+        data.Product_name || '',
+        data.Category || '',
+        data.Grade || '',
+        data.HPP || '',
+        data.HPJ || ''
+      ]];
 
-    const response = await this.sheets.spreadsheets.values.update({
-      spreadsheetId: this.usersSpreadsheetId,
-      range: `master-stock!A${rowIndex}:J${rowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values },
-    });
+      const response = await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `master-stock!A${rowIndex}:J${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
 
-    return response.data;
-  } catch (error) {
-    console.error('Error updating master stock data:', error);
-    throw error;
+      return response.data;
+    } catch (error) {
+      console.error('Error updating master stock data:', error);
+      throw error;
+    }
   }
-}
 
-async deleteMasterStockData(rowIndex) {
-  try {
-    return await this.deleteRow(this.usersSpreadsheetId, 'master-stock', rowIndex);
-  } catch (error) {
-    console.error('Error deleting master stock data:', error);
-    throw error;
+  async deleteMasterStockData(rowIndex) {
+    try {
+      return await this.deleteRow(this.usersSpreadsheetId, 'master-stock', rowIndex);
+    } catch (error) {
+      console.error('Error deleting master stock data:', error);
+      throw error;
+    }
   }
-}
 
   // ============ STOCK LAST UPDATE ============
   async getStockLastUpdate() {
