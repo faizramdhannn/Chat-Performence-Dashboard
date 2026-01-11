@@ -517,7 +517,7 @@ export default function WarrantyPage() {
         <div className="card overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-2xl font-bold text-primary">
-              {selectedView === 'warranty' ? 'Warranty Data' : 'Check Activation Data Expired = Sudah expired?, Claim = Bisa di claim?'}
+              {selectedView === 'warranty' ? 'Warranty Data' : 'Check Activation'}
             </h2>
           </div>
 
@@ -556,9 +556,9 @@ export default function WarrantyPage() {
                           <td className="px-3 py-2">{formatDate(item.created_at)}</td>
                           <td className="px-3 py-2 text-center text-lg">
                             {String(item.valid_order).toUpperCase() === 'TRUE' ? (
-                              <span className="text-green-600">✓</span>
+                              <span className="text-green-600">Benar</span>
                             ) : (
-                              <span className="text-red-600">✗</span>
+                              <span className="text-red-600">Salah</span>
                             )}
                           </td>
                         </tr>
@@ -596,16 +596,16 @@ export default function WarrantyPage() {
                           <td className="px-2 py-2">{item.product_name}</td>
                           <td className="px-2 py-2 text-center text-lg">
                             {String(item.status_expired).toUpperCase() === 'TRUE' ? (
-                              <span className="text-green-600">✓</span>
+                              <span className="text-green-600">Sudah</span>
                             ) : (
-                              <span className="text-red-600">✗</span>
+                              <span className="text-red-600">Belum</span>
                             )}
                           </td>
                           <td className="px-2 py-2 text-center text-lg">
                             {String(item.status_claim).toUpperCase() === 'TRUE' ? (
-                              <span className="text-green-600">✓</span>
+                              <span className="text-green-600">Bisa</span>
                             ) : (
-                              <span className="text-red-600">✗</span>
+                              <span className="text-red-600">Tidak</span>
                             )}
                           </td>
                           <td className="px-2 py-2">{formatDate(item.created_at)}</td>
