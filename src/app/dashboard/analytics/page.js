@@ -613,7 +613,7 @@ export default function AnalyticsPage() {
                 <thead>
                   <tr>
                     <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
-                      {selectedView === "intensi-store" ? "By Product" : "By Status"}
+                      {selectedView === "intensi-store" ? "By Intensi" : "By Case"}
                     </th>
                     {storePivotData.stores?.map((store, idx) => (
                       <th
