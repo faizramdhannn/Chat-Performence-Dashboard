@@ -29,6 +29,7 @@ export default function AnalyticsPage() {
     closingStatus: "all",
   });
 
+  // State untuk view selector
   const [selectedView, setSelectedView] = useState("intention");
   const [pivotData, setPivotData] = useState({
     rows: [],
@@ -36,6 +37,18 @@ export default function AnalyticsPage() {
     matrix: {},
     totals: {},
   });
+
+  // ===== STORE ANALYTICS STATES =====
+  const [storePivotData, setStorePivotData] = useState({
+    rows: [],
+    stores: [],
+    matrix: {},
+    columnTotals: {},
+    grandTotal: 0,
+  });
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [storeCsList, setStoreCsList] = useState([]);
+  const [storeChannelList, setStoreChannelList] = useState([]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -67,12 +80,15 @@ export default function AnalyticsPage() {
   };
 
   useEffect(() => {
-    // CS sekarang bisa akses analytics
     fetchAnalytics();
   }, [session]);
 
   useEffect(() => {
-    processPivotData();
+    if (selectedView === "intention" || selectedView === "case") {
+      processPivotData();
+    } else if (selectedView === "intensi-store" || selectedView === "case-store") {
+      fetchStoreAnalytics();
+    }
   }, [filters, data, selectedView]);
 
   const fetchAnalytics = async () => {
@@ -98,7 +114,65 @@ export default function AnalyticsPage() {
     }
   };
 
-  // Function to parse date from "01 Jan 2026" format to "2026-01-01"
+  // ===== STORE ANALYTICS FETCH FUNCTION =====
+  const fetchStoreAnalytics = async () => {
+    setStoreLoading(true);
+    try {
+      const view = selectedView === "intensi-store" ? "intensi" : "case";
+      const params = new URLSearchParams({
+        view,
+        startDate: filters.dateFrom,
+        endDate: filters.dateTo,
+        cs: filters.cs,
+        channel: filters.channel,
+      });
+
+      const response = await fetch(`/api/analytics/store?${params}`);
+      const result = await response.json();
+
+      if (result.pivotMap && result.stores && result.rows) {
+        const grandTotal = result.columnTotals?.total || 0;
+
+        setStorePivotData({
+          rows: result.rows,
+          stores: result.stores,
+          matrix: result.pivotMap,
+          rowTotals: result.rows.reduce((acc, row) => {
+            acc[row] = result.pivotMap[row]?.total || 0;
+            return acc;
+          }, {}),
+          columnTotals: result.columnTotals,
+          grandTotal: grandTotal,
+        });
+
+        // Set filter options
+        setStoreCsList(result.csList || []);
+        setStoreChannelList(result.stores || []);
+      } else {
+        setStorePivotData({
+          rows: [],
+          stores: [],
+          matrix: {},
+          rowTotals: {},
+          columnTotals: {},
+          grandTotal: 0,
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching store analytics:", error);
+      setStorePivotData({
+        rows: [],
+        stores: [],
+        matrix: {},
+        rowTotals: {},
+        columnTotals: {},
+        grandTotal: 0,
+      });
+    } finally {
+      setStoreLoading(false);
+    }
+  };
+
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
     try {
@@ -118,7 +192,6 @@ export default function AnalyticsPage() {
   const processPivotData = () => {
     let filtered = [...data];
 
-    // Only filter if dateFrom/dateTo have values
     if (filters.dateFrom) {
       filtered = filtered.filter((item) => {
         const itemDate = parseDate(item.date);
@@ -229,6 +302,10 @@ export default function AnalyticsPage() {
   }
 
   const maxRowValue = Math.max(...Object.values(pivotData.rowTotals || {}), 1);
+  const maxStoreRowValue = Math.max(...Object.values(storePivotData.rowTotals || {}), 1);
+
+  // Tentukan apakah sedang di Store view
+  const isStoreView = selectedView === "intensi-store" || selectedView === "case-store";
 
   return (
     <div>
@@ -270,12 +347,13 @@ export default function AnalyticsPage() {
 
           <div>
             <label className="block text-sm font-semibold text-primary mb-2">
-              Shift
+              {isStoreView ? "Shift (N/A)" : "Shift"}
             </label>
             <select
               value={filters.shift}
               onChange={(e) => handleFilterChange("shift", e.target.value)}
               className="input-field"
+              disabled={isStoreView}
             >
               <option value="all">All Shifts</option>
               {filterOptions.shifts.map((shift) => (
@@ -296,7 +374,7 @@ export default function AnalyticsPage() {
               className="input-field"
             >
               <option value="all">All CS</option>
-              {filterOptions.cs.map((cs) => (
+              {(isStoreView ? storeCsList : filterOptions.cs).map((cs) => (
                 <option key={cs} value={cs}>
                   {cs}
                 </option>
@@ -306,15 +384,15 @@ export default function AnalyticsPage() {
 
           <div>
             <label className="block text-sm font-semibold text-primary mb-2">
-              Channel
+              {isStoreView ? "Store" : "Channel"}
             </label>
             <select
               value={filters.channel}
               onChange={(e) => handleFilterChange("channel", e.target.value)}
               className="input-field"
             >
-              <option value="all">All Channels</option>
-              {filterOptions.channels.map((channel) => (
+              <option value="all">{isStoreView ? "All Stores" : "All Channels"}</option>
+              {(isStoreView ? storeChannelList : filterOptions.channels).map((channel) => (
                 <option key={channel} value={channel}>
                   {channel}
                 </option>
@@ -324,7 +402,7 @@ export default function AnalyticsPage() {
 
           <div>
             <label className="block text-sm font-semibold text-primary mb-2">
-              Closing Status
+              {isStoreView ? "Closing Status (N/A)" : "Closing Status"}
             </label>
             <select
               value={filters.closingStatus}
@@ -332,6 +410,7 @@ export default function AnalyticsPage() {
                 handleFilterChange("closingStatus", e.target.value)
               }
               className="input-field"
+              disabled={isStoreView}
             >
               <option value="all">All Status</option>
               {filterOptions.closingStatus.map((status) => (
@@ -343,6 +422,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
+
       <div className="flex justify-end mb-6">
         <button
           onClick={handleExport}
@@ -352,63 +432,122 @@ export default function AnalyticsPage() {
           {exporting ? "Exporting..." : "📥 Export to Excel"}
         </button>
       </div>
-      {/* Summary */}
+
+      {/* Summary - Dinamis berdasarkan view */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="stat-card-accent">
-          <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
-            Total {selectedView === "intention" ? "Intentions" : "Cases"}
-          </h3>
-          <div className="text-4xl text-center font-bold text-primary">
-            {pivotData.rows?.length || 0}
-          </div>
-        </div>
+        {isStoreView ? (
+          <>
+            {/* Store Analytics Summary */}
+            <div className="stat-card-accent">
+              <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
+                Total {selectedView === "intensi-store" ? "Products/Intensi" : "Status/Case"}
+              </h3>
+              <div className="text-4xl text-center font-bold text-primary">
+                {storePivotData.rows?.length || 0}
+              </div>
+            </div>
 
-        <div className="stat-card">
-          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
-            Total Channels
-          </h3>
-          <div className="text-4xl text-center font-bold text-primary">
-            {pivotData.columns?.length || 0}
-          </div>
-        </div>
+            <div className="stat-card">
+              <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+                Total Stores
+              </h3>
+              <div className="text-4xl text-center font-bold text-primary">
+                {storePivotData.stores?.length || 0}
+              </div>
+            </div>
 
-        <div className="stat-card">
-          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
-            Total Records
-          </h3>
-          <div className="text-4xl text-center font-bold text-primary">
-            {pivotData.grandTotal || 0}
-          </div>
-        </div>
+            <div className="stat-card">
+              <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+                Total Records
+              </h3>
+              <div className="text-4xl text-center font-bold text-primary">
+                {storePivotData.grandTotal || 0}
+              </div>
+            </div>
 
-        <div className="stat-card">
-          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
-            Date Range
-          </h3>
-          <div className="text-sm text-center font-bold text-primary">
-            {filters.dateFrom
-              ? new Date(filters.dateFrom).toLocaleDateString("id-ID", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "All"}
-            {" → "}
-            {filters.dateTo
-              ? new Date(filters.dateTo).toLocaleDateString("id-ID", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
-              : "All"}
-          </div>
-        </div>
+            <div className="stat-card">
+              <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+                Date Range
+              </h3>
+              <div className="text-sm text-center font-bold text-primary">
+                {filters.dateFrom
+                  ? new Date(filters.dateFrom).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "All"}
+                {" → "}
+                {filters.dateTo
+                  ? new Date(filters.dateTo).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "All"}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Normal Pivot Summary */}
+            <div className="stat-card-accent">
+              <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
+                Total {selectedView === "intention" ? "Intentions" : "Cases"}
+              </h3>
+              <div className="text-4xl text-center font-bold text-primary">
+                {pivotData.rows?.length || 0}
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+                Total Channels
+              </h3>
+              <div className="text-4xl text-center font-bold text-primary">
+                {pivotData.columns?.length || 0}
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+                Total Records
+              </h3>
+              <div className="text-4xl text-center font-bold text-primary">
+                {pivotData.grandTotal || 0}
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+                Date Range
+              </h3>
+              <div className="text-sm text-center font-bold text-primary">
+                {filters.dateFrom
+                  ? new Date(filters.dateFrom).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "All"}
+                {" → "}
+                {filters.dateTo
+                  ? new Date(filters.dateTo).toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "All"}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* View Selector */}
       <div className="card p-6 mb-8">
         <h2 className="text-2xl font-bold text-primary mb-4">Select View</h2>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <button
             onClick={() => setSelectedView("intention")}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
@@ -429,95 +568,206 @@ export default function AnalyticsPage() {
           >
             Case
           </button>
+          <button
+            onClick={() => setSelectedView("intensi-store")}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedView === "intensi-store"
+                ? "bg-accent text-primary shadow-lg"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            Intensi Store
+          </button>
+          <button
+            onClick={() => setSelectedView("case-store")}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedView === "case-store"
+                ? "bg-accent text-primary shadow-lg"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            Case Store
+          </button>
         </div>
       </div>
 
-      {/* Pivot Table */}
-      <div className="card overflow-hidden">
-        {pivotData.rows?.length === 0 ? (
-          <div className="text-center py-16">
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              No Data Found
-            </h3>
-            <p className="text-gray-500">Try adjusting your filters</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
-                    {selectedView === "intention" ? "By Intensi" : "By Case"}
-                  </th>
-                  {pivotData.columns?.map((channel, idx) => (
-                    <th
-                      key={idx}
-                      className="px-4 py-3 bg-primary text-white text-center font-bold border border-gray-300 min-w-[80px]"
-                    >
-                      {channel}
+      {/* Table Section - Dinamis berdasarkan view */}
+      {isStoreView ? (
+        // ===== STORE ANALYTICS PIVOT TABLE =====
+        <div className="card overflow-hidden">
+          {storeLoading ? (
+            <div className="text-center py-16">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading Store Data...</p>
+            </div>
+          ) : storePivotData.rows?.length === 0 ? (
+            <div className="text-center py-16">
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                No Data Found
+              </h3>
+              <p className="text-gray-500">Try adjusting your filters</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
+                      {selectedView === "intensi-store" ? "By Product" : "By Status"}
                     </th>
-                  ))}
-                  <th className="px-4 py-3 bg-accent text-primary text-center font-bold border border-gray-300 min-w-[100px]">
-                    TOTAL
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pivotData.rows?.map((row, rowIdx) => {
-                  const rowTotal = pivotData.rowTotals?.[row] || 0;
-                  const rowColor = getCellColor(rowTotal, maxRowValue);
-
-                  return (
-                    <tr key={rowIdx} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 border border-gray-300 font-semibold text-gray-800 sticky left-0 bg-white z-10">
-                        {row}
-                      </td>
-                      {pivotData.columns?.map((col, colIdx) => {
-                        const value = pivotData.matrix?.[row]?.[col] || 0;
-                        return (
-                          <td
-                            key={colIdx}
-                            className={`px-4 py-3 border border-gray-300 text-center ${
-                              value > 0 ? "text-gray-800" : "text-gray-400"
-                            }`}
-                          >
-                            {value > 0 ? value : "0"}
-                          </td>
-                        );
-                      })}
-                      <td
-                        className={`px-4 py-3 border border-gray-300 text-center font-bold ${rowColor}`}
+                    {storePivotData.stores?.map((store, idx) => (
+                      <th
+                        key={idx}
+                        className="px-4 py-3 bg-primary text-white text-center font-bold border border-gray-300 min-w-[80px]"
                       >
-                        {rowTotal}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        {store}
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 bg-accent text-primary text-center font-bold border border-gray-300 min-w-[100px]">
+                      TOTAL
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {storePivotData.rows?.map((rowName, rowIdx) => {
+                    const rowData = storePivotData.matrix[rowName] || {};
+                    const rowTotal = storePivotData.rowTotals?.[rowName] || 0;
+                    const rowColor = getCellColor(rowTotal, maxStoreRowValue);
 
-                <tr className="bg-yellow-100 font-bold">
-                  <td className="px-4 py-3 border border-gray-300 text-gray-800 sticky left-0 z-10 bg-yellow-100">
-                    Total
-                  </td>
-                  {pivotData.columns?.map((col, idx) => (
-                    <td
-                      key={idx}
-                      className="px-4 py-3 border border-gray-300 text-center text-gray-800"
-                    >
-                      {pivotData.columnTotals?.[col] || 0}
+                    return (
+                      <tr key={rowIdx} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 border border-gray-300 font-semibold text-gray-800 sticky left-0 bg-white z-10">
+                          {rowName}
+                        </td>
+                        {storePivotData.stores?.map((store, colIdx) => {
+                          const value = rowData[store] || 0;
+                          return (
+                            <td
+                              key={colIdx}
+                              className={`px-4 py-3 border border-gray-300 text-center ${
+                                value > 0 ? "text-gray-800" : "text-gray-400"
+                              }`}
+                            >
+                              {value > 0 ? value : "0"}
+                            </td>
+                          );
+                        })}
+                        <td className={`px-4 py-3 border border-gray-300 text-center font-bold ${rowColor}`}>
+                          {rowTotal}
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  <tr className="bg-yellow-100 font-bold">
+                    <td className="px-4 py-3 border border-gray-300 text-gray-800 sticky left-0 z-10 bg-yellow-100">
+                      Total
                     </td>
-                  ))}
-                  <td className="px-4 py-3 border border-gray-300 text-center bg-red-600 text-white text-lg">
-                    {pivotData.grandTotal || 0}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                    {storePivotData.stores?.map((store, idx) => (
+                      <td
+                        key={idx}
+                        className="px-4 py-3 border border-gray-300 text-center text-gray-800"
+                      >
+                        {storePivotData.columnTotals?.[store] || 0}
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 border border-gray-300 text-center bg-red-600 text-white text-lg">
+                      {storePivotData.grandTotal || 0}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        // ===== NORMAL PIVOT TABLE =====
+        <div className="card overflow-hidden">
+          {pivotData.rows?.length === 0 ? (
+            <div className="text-center py-16">
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">
+                No Data Found
+              </h3>
+              <p className="text-gray-500">Try adjusting your filters</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
+                      {selectedView === "intention" ? "By Intensi" : "By Case"}
+                    </th>
+                    {pivotData.columns?.map((channel, idx) => (
+                      <th
+                        key={idx}
+                        className="px-4 py-3 bg-primary text-white text-center font-bold border border-gray-300 min-w-[80px]"
+                      >
+                        {channel}
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 bg-accent text-primary text-center font-bold border border-gray-300 min-w-[100px]">
+                      TOTAL
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pivotData.rows?.map((row, rowIdx) => {
+                    const rowTotal = pivotData.rowTotals?.[row] || 0;
+                    const rowColor = getCellColor(rowTotal, maxRowValue);
 
-      {/* Top Items */}
-      {pivotData.rows?.length > 0 && (
+                    return (
+                      <tr key={rowIdx} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 border border-gray-300 font-semibold text-gray-800 sticky left-0 bg-white z-10">
+                          {row}
+                        </td>
+                        {pivotData.columns?.map((col, colIdx) => {
+                          const value = pivotData.matrix?.[row]?.[col] || 0;
+                          return (
+                            <td
+                              key={colIdx}
+                              className={`px-4 py-3 border border-gray-300 text-center ${
+                                value > 0 ? "text-gray-800" : "text-gray-400"
+                              }`}
+                            >
+                              {value > 0 ? value : "0"}
+                            </td>
+                          );
+                        })}
+                        <td
+                          className={`px-4 py-3 border border-gray-300 text-center font-bold ${rowColor}`}
+                        >
+                          {rowTotal}
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  <tr className="bg-yellow-100 font-bold">
+                    <td className="px-4 py-3 border border-gray-300 text-gray-800 sticky left-0 z-10 bg-yellow-100">
+                      Total
+                    </td>
+                    {pivotData.columns?.map((col, idx) => (
+                      <td
+                        key={idx}
+                        className="px-4 py-3 border border-gray-300 text-center text-gray-800"
+                      >
+                        {pivotData.columnTotals?.[col] || 0}
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 border border-gray-300 text-center bg-red-600 text-white text-lg">
+                      {pivotData.grandTotal || 0}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Top Items - Hanya untuk Intention/Case view */}
+      {!isStoreView && pivotData.rows?.length > 0 && (
         <div className="card p-6 mt-8">
           <h2 className="text-2xl font-bold text-primary mb-4">
             Top 5 {selectedView === "intention" ? "Intentions" : "Cases"} by
