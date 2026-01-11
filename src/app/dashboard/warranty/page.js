@@ -309,6 +309,17 @@ export default function WarrantyPage() {
       <div className="card p-6 mb-6">
         <h2 className="text-2xl font-bold text-primary mb-4">Select View</h2>
         <div className="flex gap-4">
+         <button
+            onClick={() => setSelectedView('check-activation')}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedView === 'check-activation'
+                ? 'bg-accent text-primary shadow-lg'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Check 
+          </button>
+
           <button
             onClick={() => setSelectedView('warranty')}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
@@ -319,16 +330,7 @@ export default function WarrantyPage() {
           >
             Data Warranty
           </button>
-          <button
-            onClick={() => setSelectedView('check-activation')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              selectedView === 'check-activation'
-                ? 'bg-accent text-primary shadow-lg'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            Check 
-          </button>
+
           <button
             onClick={() => setSelectedView('report')}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
