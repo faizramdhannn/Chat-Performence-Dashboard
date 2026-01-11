@@ -51,7 +51,7 @@ export async function GET(request) {
     if (!rows || rows.length === 0) {
       return NextResponse.json({ 
         data: [],
-        stores: [],
+        visitors: [],
         csList: [],
         rows: []
       });
@@ -63,11 +63,9 @@ export async function GET(request) {
       date: row[0] || '',
       taft_name: row[1] || '',
       store: row[2] || '',
-      visitor: parseInt(row[3]) || 0,
+      visitor: row[3] || '', // Keep as string to get unique values
       intensi: row[4] || '', // Keep as string to get unique values
       case: row[5] || '',     // Keep as string to get unique values
-      intensiCount: parseInt(row[4]) || 0, // For counting
-      caseCount: parseInt(row[5]) || 0,    // For counting
       product_name: row[6] || '',
       status: row[7] || '',
       reason: row[8] || '',
@@ -107,52 +105,58 @@ export async function GET(request) {
     // Get the field name based on view
     const fieldName = view === 'intensi' ? 'intensi' : 'case';
 
-    // Get unique stores
-    const uniqueStores = [...new Set(filteredData.map(item => item.store))].filter(Boolean).sort();
+    // Get unique visitor values (as columns) and intensi/case values (as rows)
+    const uniqueVisitors = [...new Set(filteredData.map(item => item.visitor))].filter(Boolean).sort((a, b) => {
+      // Sort numerically if possible
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return String(a).localeCompare(String(b));
+    });
     
-    // Get unique intensi/case values (as strings, not counts)
+    // Get unique intensi/case values (as rows)
     const uniqueRows = [...new Set(filteredData.map(item => item[fieldName]))].filter(Boolean).sort();
     
     const uniqueCS = [...new Set(filteredData.map(item => item.taft_name))].filter(Boolean).sort();
 
     // Create pivot table structure
     // Row = unique intensi/case value (as string)
-    // Column = store
+    // Column = visitor value (as string)
     // Value = count of occurrences
     const pivotMap = {};
 
     // Initialize pivot map
     uniqueRows.forEach(rowValue => {
       pivotMap[rowValue] = {};
-      uniqueStores.forEach(store => {
-        pivotMap[rowValue][store] = 0;
+      uniqueVisitors.forEach(visitor => {
+        pivotMap[rowValue][visitor] = 0;
       });
       pivotMap[rowValue].total = 0;
     });
 
     // Fill pivot map with data
-    // We count how many times each intensi/case value appears in each store
+    // We count how many times each intensi/case value appears with each visitor value
     filteredData.forEach(item => {
       const rowKey = item[fieldName]; // The intensi or case value (as string)
-      const store = item.store;
+      const visitor = item.visitor;
 
-      if (rowKey && store && pivotMap[rowKey] && pivotMap[rowKey][store] !== undefined) {
+      if (rowKey && visitor && pivotMap[rowKey] && pivotMap[rowKey][visitor] !== undefined) {
         // Count this occurrence
-        pivotMap[rowKey][store] += 1;
+        pivotMap[rowKey][visitor] += 1;
         pivotMap[rowKey].total += 1;
       }
     });
 
     // Calculate column totals
     const columnTotals = {};
-    uniqueStores.forEach(store => {
-      columnTotals[store] = 0;
+    uniqueVisitors.forEach(visitor => {
+      columnTotals[visitor] = 0;
     });
     columnTotals.total = 0;
 
     uniqueRows.forEach(rowValue => {
-      uniqueStores.forEach(store => {
-        columnTotals[store] += pivotMap[rowValue][store] || 0;
+      uniqueVisitors.forEach(visitor => {
+        columnTotals[visitor] += pivotMap[rowValue][visitor] || 0;
       });
       columnTotals.total += pivotMap[rowValue].total || 0;
     });
@@ -160,7 +164,7 @@ export async function GET(request) {
     return NextResponse.json({
       pivotMap,
       rows: uniqueRows,
-      stores: uniqueStores,
+      visitors: uniqueVisitors, // Changed from 'stores' to 'visitors'
       csList: uniqueCS,
       columnTotals,
     });

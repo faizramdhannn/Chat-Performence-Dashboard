@@ -1,149 +1,195 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
-import googleSheets from '@/lib/googleSheets';
 import ExcelJS from 'exceljs';
 
 export async function POST(request) {
-  const auth = await requireAuth();
-  
-  if (!auth.authorized) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
-    const body = await request.json();
-    const { filters } = body;
-
-    // Get all data
-    let data = await googleSheets.getAllData();
-
-    // Apply filters if provided
-    if (filters) {
-      if (filters.dateFrom) {
-        data = data.filter(item => item.date >= filters.dateFrom);
-      }
-      if (filters.dateTo) {
-        data = data.filter(item => item.date <= filters.dateTo);
-      }
-      if (filters.shift && filters.shift !== 'all') {
-        data = data.filter(item => item.shift === filters.shift);
-      }
-      if (filters.channel && filters.channel !== 'all') {
-        data = data.filter(item => item.channel === filters.channel);
-      }
-      if (filters.cs && filters.cs !== 'all') {
-        data = data.filter(item => item.cs === filters.cs);
-      }
-      if (filters.closingStatus && filters.closingStatus !== 'all') {
-        data = data.filter(item => item.closing_status === filters.closingStatus);
-      }
-    }
-
-    // Create pivot table data
-    const intentions = [...new Set(data.map(d => d.intention).filter(Boolean))].sort();
-    const channels = [...new Set(data.map(d => d.channel).filter(Boolean))].sort();
-
-    // Build pivot matrix
-    const pivotData = [];
-    
-    intentions.forEach(intention => {
-      const row = { 'By Intensi': intention };
-      let rowTotal = 0;
-      
-      channels.forEach(channel => {
-        const count = data.filter(d => d.intention === intention && d.channel === channel).length;
-        row[channel] = count;
-        rowTotal += count;
-      });
-      
-      row['TOTAL'] = rowTotal;
-      pivotData.push(row);
-    });
-
-    // Add column totals
-    const totalRow = { 'By Intensi': 'TOTAL' };
-    let grandTotal = 0;
-    
-    channels.forEach(channel => {
-      const total = data.filter(d => d.channel === channel).length;
-      totalRow[channel] = total;
-      grandTotal += total;
-    });
-    totalRow['TOTAL'] = grandTotal;
-    pivotData.push(totalRow);
+    const { filters, view, pivotData } = await request.json();
 
     // Create workbook
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Pivot Table');
+    const worksheet = workbook.addWorksheet('Analytics Data');
 
-    // Add headers
-    const headers = ['By Intensi', ...channels, 'TOTAL'];
-    worksheet.addRow(headers);
-
-    // Style header
-    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    worksheet.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF2C4F5E' }
-    };
-    worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-
-    // Add data rows
-    pivotData.forEach((rowData, index) => {
-      const values = headers.map(h => rowData[h] || 0);
-      const row = worksheet.addRow(values);
-      
-      // Style total row
-      if (index === pivotData.length - 1) {
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFAFCC3C' }
-        };
-        row.font = { bold: true };
-      }
-      
-      // Style TOTAL column
-      row.getCell(headers.length).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFAFCC3C' }
-      };
-      row.getCell(headers.length).font = { bold: true };
-    });
-
-    // Set column widths
-    worksheet.getColumn(1).width = 30;
-    for (let i = 2; i <= headers.length; i++) {
-      worksheet.getColumn(i).width = 15;
+    // Determine view name and structure
+    let viewName = '';
+    let columnHeader = '';
+    let rowHeader = '';
+    
+    if (view === 'intention') {
+      viewName = 'Intention';
+      rowHeader = 'Intensi';
+      columnHeader = 'Channel';
+    } else if (view === 'case') {
+      viewName = 'Case';
+      rowHeader = 'Case';
+      columnHeader = 'Channel';
+    } else if (view === 'intensi-ai') {
+      viewName = 'Intensi AI';
+      rowHeader = 'Intensi';
+      columnHeader = 'Handle AI';
+    } else if (view === 'case-ai') {
+      viewName = 'Case AI';
+      rowHeader = 'Case';
+      columnHeader = 'Handle AI';
+    } else if (view === 'intensi-store') {
+      viewName = 'Intensi Store';
+      rowHeader = 'Intensi';
+      columnHeader = 'Visitor';
+    } else if (view === 'case-store') {
+      viewName = 'Case Store';
+      rowHeader = 'Case';
+      columnHeader = 'Visitor';
     }
 
-    // Add borders
-    worksheet.eachRow((row, rowNumber) => {
-      row.eachCell((cell) => {
+    // Determine columns based on view
+    const isStoreView = view === 'intensi-store' || view === 'case-store';
+    const columns = isStoreView ? (pivotData.visitors || pivotData.stores) : pivotData.columns;
+
+    // Add title
+    worksheet.mergeCells('A1', String.fromCharCode(65 + columns.length + 1) + '1');
+    worksheet.getCell('A1').value = `${viewName} Analytics Report`;
+    worksheet.getCell('A1').font = { bold: true, size: 16 };
+    worksheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+    worksheet.getRow(1).height = 30;
+
+    // Add filter info
+    let filterInfo = 'Filters: ';
+    if (filters.dateFrom) filterInfo += `From: ${filters.dateFrom} `;
+    if (filters.dateTo) filterInfo += `To: ${filters.dateTo} `;
+    if (filters.cs !== 'all') filterInfo += `CS: ${filters.cs} `;
+    if (filters.channel !== 'all') filterInfo += `${columnHeader}: ${filters.channel} `;
+    if (filters.shift !== 'all') filterInfo += `Shift: ${filters.shift} `;
+    if (filters.closingStatus !== 'all') filterInfo += `Status: ${filters.closingStatus}`;
+    
+    worksheet.mergeCells('A2', String.fromCharCode(65 + columns.length + 1) + '2');
+    worksheet.getCell('A2').value = filterInfo;
+    worksheet.getCell('A2').font = { italic: true, size: 10 };
+    worksheet.getRow(2).height = 20;
+
+    // Add headers (row 4)
+    const headers = [
+      rowHeader,
+      ...columns,
+      'TOTAL'
+    ];
+    
+    worksheet.addRow([]); // Empty row 3
+    const headerRow = worksheet.addRow(headers);
+    
+    // Style header row
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4472C4' }
+      };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Add data rows
+    pivotData.rows.forEach((row) => {
+      const rowData = [
+        row,
+        ...columns.map(col => pivotData.matrix[row]?.[col] || 0),
+        pivotData.rowTotals[row] || 0
+      ];
+      
+      const dataRow = worksheet.addRow(rowData);
+      
+      // Style data row
+      dataRow.eachCell((cell, colNumber) => {
         cell.border = {
           top: { style: 'thin' },
           left: { style: 'thin' },
           bottom: { style: 'thin' },
           right: { style: 'thin' }
         };
+        
+        if (colNumber === 1) {
+          cell.font = { bold: true };
+          cell.alignment = { horizontal: 'left' };
+        } else {
+          cell.alignment = { horizontal: 'center' };
+        }
+        
+        // Highlight total column
+        if (colNumber === headers.length) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFF2CC' }
+          };
+          cell.font = { bold: true };
+        }
       });
+    });
+
+    // Add total row
+    const totalRowData = [
+      'TOTAL',
+      ...columns.map(col => pivotData.columnTotals[col] || 0),
+      pivotData.grandTotal || 0
+    ];
+    
+    const totalRow = worksheet.addRow(totalRowData);
+    
+    // Style total row
+    totalRow.eachCell((cell, colNumber) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFF2CC' }
+      };
+      cell.font = { bold: true };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      
+      // Grand total cell
+      if (colNumber === headers.length) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFF0000' }
+        };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      }
+    });
+
+    // Auto-fit columns
+    worksheet.columns.forEach((column, index) => {
+      if (index === 0) {
+        column.width = 30; // First column wider for labels
+      } else {
+        column.width = 15;
+      }
     });
 
     // Generate buffer
     const buffer = await workbook.xlsx.writeBuffer();
 
-    // Return file
+    // Return as blob
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="Analytics_Pivot_${new Date().toISOString().split('T')[0]}.xlsx"`
-      }
+        'Content-Disposition': `attachment; filename="${viewName}_Export_${new Date().toISOString().split('T')[0]}.xlsx"`,
+      },
     });
-
   } catch (error) {
-    console.error('Error exporting data:', error);
-    return NextResponse.json({ error: 'Failed to export data' }, { status: 500 });
+    console.error('Error exporting:', error);
+    return NextResponse.json(
+      { error: 'Failed to export data', details: error.message },
+      { status: 500 }
+    );
   }
 }

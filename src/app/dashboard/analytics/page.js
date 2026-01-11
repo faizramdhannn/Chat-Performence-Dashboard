@@ -55,17 +55,36 @@ export default function AnalyticsPage() {
     setExporting(true);
 
     try {
+      // Determine which data to send based on view
+      const isStore = selectedView === "intensi-store" || selectedView === "case-store";
+      const exportData = isStore ? storePivotData : pivotData;
+
       const response = await fetch("/api/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters }),
+        body: JSON.stringify({ 
+          filters,
+          view: selectedView,
+          pivotData: exportData
+        }),
       });
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Chat_Performance_Export_${
+      
+      // Dynamic filename based on view
+      let viewName = "";
+      if (selectedView === "intention") viewName = "Intention";
+      else if (selectedView === "case") viewName = "Case";
+      else if (selectedView === "intensi-ai") viewName = "Intensi_AI";
+      else if (selectedView === "case-ai") viewName = "Case_AI";
+      else if (selectedView === "intensi-store") viewName = "Intensi_Store";
+      else if (selectedView === "case-store") viewName = "Case_Store";
+      else viewName = "Chat_Performance";
+      
+      a.download = `${viewName}_Export_${
         new Date().toISOString().split("T")[0]
       }.xlsx`;
       document.body.appendChild(a);
@@ -141,12 +160,12 @@ export default function AnalyticsPage() {
       const response = await fetch(`/api/analytics/store?${params}`);
       const result = await response.json();
 
-      if (result.pivotMap && result.stores && result.rows) {
+      if (result.pivotMap && result.visitors && result.rows) {
         const grandTotal = result.columnTotals?.total || 0;
 
         setStorePivotData({
           rows: result.rows,
-          stores: result.stores,
+          stores: result.visitors, // Changed: use visitors as columns
           matrix: result.pivotMap,
           rowTotals: result.rows.reduce((acc, row) => {
             acc[row] = result.pivotMap[row]?.total || 0;
@@ -158,7 +177,7 @@ export default function AnalyticsPage() {
 
         // Set filter options
         setStoreCsList(result.csList || []);
-        setStoreChannelList(result.stores || []);
+        setStoreChannelList(result.visitors || []); // Use visitors for channel list
       } else {
         setStorePivotData({
           rows: [],
@@ -487,7 +506,7 @@ export default function AnalyticsPage() {
             {/* Store Analytics Summary */}
             <div className="stat-card-accent">
               <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
-                Total {selectedView === "intensi-store" ? "Products/Intensi" : "Status/Case"}
+                Total {selectedView === "intensi-store" ? "Intensi" : "Case"}
               </h3>
               <div className="text-4xl text-center font-bold text-primary">
                 {storePivotData.rows?.length || 0}
@@ -496,7 +515,7 @@ export default function AnalyticsPage() {
 
             <div className="stat-card">
               <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
-                Total Stores
+                Total Visitors
               </h3>
               <div className="text-4xl text-center font-bold text-primary">
                 {storePivotData.stores?.length || 0}
@@ -685,14 +704,14 @@ export default function AnalyticsPage() {
                 <thead>
                   <tr>
                     <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
-                      {selectedView === "intensi-store" ? "By Product" : "By Status"}
+                      {selectedView === "intensi-store" ? "By Intensi" : "By Case"}
                     </th>
-                    {storePivotData.stores?.map((store, idx) => (
+                    {storePivotData.stores?.map((visitor, idx) => (
                       <th
                         key={idx}
                         className="px-4 py-3 bg-primary text-white text-center font-bold border border-gray-300 min-w-[80px]"
                       >
-                        {store}
+                        {visitor}
                       </th>
                     ))}
                     <th className="px-4 py-3 bg-accent text-primary text-center font-bold border border-gray-300 min-w-[100px]">
@@ -711,8 +730,8 @@ export default function AnalyticsPage() {
                         <td className="px-4 py-3 border border-gray-300 font-semibold text-gray-800 sticky left-0 bg-white z-10">
                           {rowName}
                         </td>
-                        {storePivotData.stores?.map((store, colIdx) => {
-                          const value = rowData[store] || 0;
+                        {storePivotData.stores?.map((visitor, colIdx) => {
+                          const value = rowData[visitor] || 0;
                           return (
                             <td
                               key={colIdx}
@@ -735,12 +754,12 @@ export default function AnalyticsPage() {
                     <td className="px-4 py-3 border border-gray-300 text-gray-800 sticky left-0 z-10 bg-yellow-100">
                       Total
                     </td>
-                    {storePivotData.stores?.map((store, idx) => (
+                    {storePivotData.stores?.map((visitor, idx) => (
                       <td
                         key={idx}
                         className="px-4 py-3 border border-gray-300 text-center text-gray-800"
                       >
-                        {storePivotData.columnTotals?.[store] || 0}
+                        {storePivotData.columnTotals?.[visitor] || 0}
                       </td>
                     ))}
                     <td className="px-4 py-3 border border-gray-300 text-center bg-red-600 text-white text-lg">
