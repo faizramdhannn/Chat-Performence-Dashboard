@@ -11,7 +11,7 @@ export default function WarrantyPage() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [selectedView, setSelectedView] = useState('warranty');
+  const [selectedView, setSelectedView] = useState('check-activation');
   const [channels, setChannels] = useState([]);
   
   // Pagination
