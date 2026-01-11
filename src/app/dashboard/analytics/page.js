@@ -165,7 +165,7 @@ export default function AnalyticsPage() {
 
         setStorePivotData({
           rows: result.rows,
-          stores: result.visitors, // Changed: use visitors as columns
+          stores: result.visitors, // Use visitors as columns in table
           matrix: result.pivotMap,
           rowTotals: result.rows.reduce((acc, row) => {
             acc[row] = result.pivotMap[row]?.total || 0;
@@ -177,7 +177,7 @@ export default function AnalyticsPage() {
 
         // Set filter options
         setStoreCsList(result.csList || []);
-        setStoreChannelList(result.visitors || []); // Use visitors for channel list
+        setStoreChannelList(result.storesList || []); // Use storesList for channel/store filter dropdown
       } else {
         setStorePivotData({
           rows: [],
@@ -450,14 +450,14 @@ export default function AnalyticsPage() {
 
           <div>
             <label className="block text-sm font-semibold text-primary mb-2">
-              {isStoreView ? "Store" : "Channel"}
+              {isStoreView ? "Visitor" : "Channel"}
             </label>
             <select
               value={filters.channel}
               onChange={(e) => handleFilterChange("channel", e.target.value)}
               className="input-field"
             >
-              <option value="all">{isStoreView ? "All Stores" : "All Channels"}</option>
+              <option value="all">{isStoreView ? "All Visitors" : "All Channels"}</option>
               {(isStoreView ? storeChannelList : filterOptions.channels).map((channel) => (
                 <option key={channel} value={channel}>
                   {channel}

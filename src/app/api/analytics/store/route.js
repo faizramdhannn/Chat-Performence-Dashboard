@@ -97,9 +97,10 @@ export async function GET(request) {
       filteredData = filteredData.filter((item) => item.taft_name === cs);
     }
 
-    // Filter by Channel (store)
+    // Filter by Channel (store for non-store views, visitor for store views)
+    // Note: We still use 'channel' parameter name for consistency, but filter by visitor for store views
     if (channel && channel !== 'all') {
-      filteredData = filteredData.filter((item) => item.store === channel);
+      filteredData = filteredData.filter((item) => item.visitor === channel);
     }
 
     // Get the field name based on view
@@ -164,7 +165,8 @@ export async function GET(request) {
     return NextResponse.json({
       pivotMap,
       rows: uniqueRows,
-      visitors: uniqueVisitors, // Changed from 'stores' to 'visitors'
+      visitors: uniqueVisitors, // For table columns
+      storesList: uniqueVisitors, // For filter dropdown (same as table columns)
       csList: uniqueCS,
       columnTotals,
     });
