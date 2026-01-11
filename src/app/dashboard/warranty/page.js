@@ -327,7 +327,7 @@ export default function WarrantyPage() {
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            Check Activation
+            Check 
           </button>
           <button
             onClick={() => setSelectedView('report')}
@@ -517,7 +517,7 @@ export default function WarrantyPage() {
         <div className="card overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-2xl font-bold text-primary">
-              {selectedView === 'warranty' ? 'Warranty Data' : 'Check Activation Data'}
+              {selectedView === 'warranty' ? 'Warranty Data' : 'Check Activation Data Expired = Sudah expired?, Claim = Bisa di claim?'}
             </h2>
           </div>
 
