@@ -451,7 +451,7 @@ class GoogleSheetsService {
 
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
-        range: `${sheetName}!A:P`,
+        range: `${sheetName}!A:Q`,
       });
 
       const rows = response.data.values;
@@ -504,7 +504,7 @@ class GoogleSheetsService {
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
-        range: `${sheetName}!A:P`,
+        range: `${sheetName}!A:Q`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });

@@ -18,6 +18,7 @@ export default function AnalyticsPage() {
     shifts: [],
     cs: [],
     closingStatus: [],
+    handleAI: [],
   });
 
   const [filters, setFilters] = useState({
@@ -84,7 +85,8 @@ export default function AnalyticsPage() {
   }, [session]);
 
   useEffect(() => {
-    if (selectedView === "intention" || selectedView === "case") {
+    if (selectedView === "intention" || selectedView === "case" || 
+        selectedView === "intensi-ai" || selectedView === "case-ai") {
       processPivotData();
     } else if (selectedView === "intensi-store" || selectedView === "case-store") {
       fetchStoreAnalytics();
@@ -97,6 +99,14 @@ export default function AnalyticsPage() {
       const result = await response.json();
 
       setData(result.data || []);
+      
+      // Extract unique handle_AI values
+      const uniqueHandleAI = [...new Set(
+        (result.data || [])
+          .map(item => item.handle_AI)
+          .filter(Boolean)
+      )].sort();
+
       setFilterOptions(
         result.filterOptions || {
           intentions: [],
@@ -105,6 +115,7 @@ export default function AnalyticsPage() {
           shifts: [],
           cs: [],
           closingStatus: [],
+          handleAI: uniqueHandleAI,
         }
       );
     } catch (error) {
@@ -219,12 +230,30 @@ export default function AnalyticsPage() {
       );
     }
 
-    const uniqueChannels = [
-      ...new Set(filtered.map((item) => item.channel).filter(Boolean)),
-    ].sort();
-    const fieldName = selectedView === "intention" ? "intention" : "case";
+    // Determine field names based on view
+    let rowFieldName, columnFieldName;
+    
+    if (selectedView === "intention") {
+      rowFieldName = "intention";
+      columnFieldName = "channel";
+    } else if (selectedView === "case") {
+      rowFieldName = "case";
+      columnFieldName = "channel";
+    } else if (selectedView === "intensi-ai") {
+      rowFieldName = "intention";
+      columnFieldName = "handle_AI";
+    } else if (selectedView === "case-ai") {
+      rowFieldName = "case";
+      columnFieldName = "handle_AI";
+    }
+
+    // Get unique values - filter out empty handle_AI for AI views
+    const uniqueColumns = selectedView.includes("-ai")
+      ? [...new Set(filtered.map((item) => item[columnFieldName]).filter(Boolean))].sort()
+      : [...new Set(filtered.map((item) => item[columnFieldName]).filter(Boolean))].sort();
+      
     const uniqueRows = [
-      ...new Set(filtered.map((item) => item[fieldName]).filter(Boolean)),
+      ...new Set(filtered.map((item) => item[rowFieldName]).filter(Boolean)),
     ].sort();
 
     const matrix = {};
@@ -235,18 +264,23 @@ export default function AnalyticsPage() {
     uniqueRows.forEach((row) => {
       matrix[row] = {};
       rowTotals[row] = 0;
-      uniqueChannels.forEach((col) => {
+      uniqueColumns.forEach((col) => {
         matrix[row][col] = 0;
       });
     });
 
-    uniqueChannels.forEach((col) => {
+    uniqueColumns.forEach((col) => {
       columnTotals[col] = 0;
     });
 
     filtered.forEach((item) => {
-      const row = item[fieldName];
-      const col = item.channel;
+      const row = item[rowFieldName];
+      const col = item[columnFieldName];
+
+      // For AI views, skip if handle_AI is empty
+      if (selectedView.includes("-ai") && !col) {
+        return;
+      }
 
       if (row && col && matrix[row] && matrix[row][col] !== undefined) {
         matrix[row][col]++;
@@ -256,9 +290,12 @@ export default function AnalyticsPage() {
       }
     });
 
+    // Filter out rows with total = 0
+    const filteredRows = uniqueRows.filter(row => rowTotals[row] > 0);
+
     setPivotData({
-      rows: uniqueRows,
-      columns: uniqueChannels,
+      rows: filteredRows,
+      columns: uniqueColumns,
       matrix: matrix,
       rowTotals: rowTotals,
       columnTotals: columnTotals,
@@ -306,6 +343,16 @@ export default function AnalyticsPage() {
 
   // Tentukan apakah sedang di Store view
   const isStoreView = selectedView === "intensi-store" || selectedView === "case-store";
+  const isAIView = selectedView === "intensi-ai" || selectedView === "case-ai";
+
+  // Get view title
+  const getViewTitle = () => {
+    if (selectedView === "intention") return "By Intensi";
+    if (selectedView === "case") return "By Case";
+    if (selectedView === "intensi-ai") return "By Intensi";
+    if (selectedView === "case-ai") return "By Case";
+    return "By Intensi";
+  };
 
   return (
     <div>
@@ -493,7 +540,12 @@ export default function AnalyticsPage() {
             {/* Normal Pivot Summary */}
             <div className="stat-card-accent">
               <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
-                Total {selectedView === "intention" ? "Intentions" : "Cases"}
+                Total {
+                  selectedView === "intention" ? "Intentions" : 
+                  selectedView === "case" ? "Cases" :
+                  selectedView === "intensi-ai" ? "Intensi" :
+                  "Cases"
+                }
               </h3>
               <div className="text-4xl text-center font-bold text-primary">
                 {pivotData.rows?.length || 0}
@@ -502,7 +554,7 @@ export default function AnalyticsPage() {
 
             <div className="stat-card">
               <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
-                Total Channels
+                Total {isAIView ? "Handle AI" : "Channels"}
               </h3>
               <div className="text-4xl text-center font-bold text-primary">
                 {pivotData.columns?.length || 0}
@@ -569,6 +621,26 @@ export default function AnalyticsPage() {
             Case
           </button>
           <button
+            onClick={() => setSelectedView("intensi-ai")}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedView === "intensi-ai"
+                ? "bg-accent text-primary shadow-lg"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            Intensi AI
+          </button>
+          <button
+            onClick={() => setSelectedView("case-ai")}
+            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+              selectedView === "case-ai"
+                ? "bg-accent text-primary shadow-lg"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            }`}
+          >
+            Case AI
+          </button>
+          <button
             onClick={() => setSelectedView("intensi-store")}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
               selectedView === "intensi-store"
@@ -613,7 +685,7 @@ export default function AnalyticsPage() {
                 <thead>
                   <tr>
                     <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
-                      {selectedView === "intensi-store" ? "By Intensi" : "By Case"}
+                      {selectedView === "intensi-store" ? "By Product" : "By Status"}
                     </th>
                     {storePivotData.stores?.map((store, idx) => (
                       <th
@@ -681,7 +753,7 @@ export default function AnalyticsPage() {
           )}
         </div>
       ) : (
-        // ===== NORMAL PIVOT TABLE =====
+        // ===== NORMAL PIVOT TABLE (Intention, Case, Intensi AI, Case AI) =====
         <div className="card overflow-hidden">
           {pivotData.rows?.length === 0 ? (
             <div className="text-center py-16">
@@ -696,14 +768,14 @@ export default function AnalyticsPage() {
                 <thead>
                   <tr>
                     <th className="px-4 py-3 bg-primary text-white text-left font-bold border border-gray-300 sticky left-0 z-10">
-                      {selectedView === "intention" ? "By Intensi" : "By Case"}
+                      {getViewTitle()}
                     </th>
-                    {pivotData.columns?.map((channel, idx) => (
+                    {pivotData.columns?.map((column, idx) => (
                       <th
                         key={idx}
                         className="px-4 py-3 bg-primary text-white text-center font-bold border border-gray-300 min-w-[80px]"
                       >
-                        {channel}
+                        {column}
                       </th>
                     ))}
                     <th className="px-4 py-3 bg-accent text-primary text-center font-bold border border-gray-300 min-w-[100px]">
@@ -766,8 +838,8 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Top Items - Hanya untuk Intention/Case view */}
-      {!isStoreView && pivotData.rows?.length > 0 && (
+      {/* Top Items - Hanya untuk Intention/Case view (tidak untuk AI dan Store) */}
+      {!isStoreView && !isAIView && pivotData.rows?.length > 0 && (
         <div className="card p-6 mt-8">
           <h2 className="text-2xl font-bold text-primary mb-4">
             Top 5 {selectedView === "intention" ? "Intentions" : "Cases"} by
