@@ -53,11 +53,24 @@ export async function GET(request) {
       const GWPOptions = [];
       const prices = {};
 
+      // Helper function to parse Indonesian currency format
+      const parseRupiah = (value) => {
+        if (!value) return 0;
+        // Remove "Rp", spaces, and dots (thousand separator)
+        // Then parse as float
+        const cleaned = String(value)
+          .replace(/Rp/gi, '')
+          .replace(/\s/g, '')
+          .replace(/\./g, '')
+          .replace(/,/g, '.'); // Replace comma with dot for decimal
+        return parseFloat(cleaned) || 0;
+      };
+
       stockRows.slice(1).forEach(row => {
         const artikel = row[artikelIndex];
         const grade = row[gradeIndex];
-        const hpj = parseFloat(row[hpjIndex]) || 0;
-        const hpt = parseFloat(row[hptIndex]) || 0;
+        const hpj = parseRupiah(row[hpjIndex]);
+        const hpt = parseRupiah(row[hptIndex]);
 
         if (!artikel) return;
 
