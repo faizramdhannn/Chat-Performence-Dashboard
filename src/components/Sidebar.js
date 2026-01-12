@@ -68,56 +68,47 @@ export default function Sidebar() {
       {
         href: "/dashboard",
         label: "Dashboard",
-        icon: "📊",
         permission: permissions.dashboard,
       },
       {
         href: "/dashboard/create",
         label: "Chat Creation",
-        icon: "💬",
         permission: permissions.chatCreation,
       },
       {
         href: "/dashboard/analytics",
         label: "Analytics",
-        icon: "📈",
         permission: permissions.analytics,
       },
       {
         href: "/dashboard/warranty",
         label: "Warranty",
-        icon: "🛡️",
         permission: permissions.warranty,
       },
       {
         href: "/dashboard/bundling",
         label: "Bundling",
-        icon: "📦",
         permission: permissions.bundling,
       },
       {
         href: "/dashboard/stock",
         label: "Stock",
-        icon: "📦",
         permission: permissions.stock,
       },
       {
         href: "/dashboard/registrations",
         label: "Registration Requests",
-        icon: "📝",
         permission: permissions.registrations,
         badge: pendingCount,
       },
       {
         href: "/dashboard/users",
         label: "User Management",
-        icon: "👥",
         permission: permissions.userManagement,
       },
       {
         href: "/dashboard/settings",
         label: "Settings",
-        icon: "⚙️",
         permission: permissions.settings,
       },
     ];
