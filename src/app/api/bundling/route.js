@@ -154,23 +154,31 @@ export async function POST(request) {
 
     const now = new Date().toISOString();
 
+    // Calculate the new row number (lastId + 1 means row index will be lastId + 2 since row 1 is header)
+    const newRowNumber = newId + 1; // If ID is 1, row is 2; if ID is 2, row is 3, etc.
+    
+    // Create stock formula that references the correct row
+    // Formula pattern: =IF(C{row}<>"";MIN(MAP(FILTER(C{row}:H{row};C{row}:H{row}<>"");LAMBDA(opt;SUM(FILTER(stock!E:E;ISNUMBER(MATCH(stock!A:A;FILTER('master-stock'!A:A;'master-stock'!D:D=opt);0)))))));"")
+    const stockFormula = `=IF(C${newRowNumber}<>"";MIN(MAP(FILTER(C${newRowNumber}:H${newRowNumber};C${newRowNumber}:H${newRowNumber}<>"");LAMBDA(opt;SUM(FILTER(stock!E:E;ISNUMBER(MATCH(stock!A:A;FILTER('master-stock'!A:A;'master-stock'!D:D=opt);0)))))));"")`;
+
+    // Create new row with stock formula
     const newRow = [
-      newId,
-      body.bundling_name,
-      body.option_1 || '',
-      body.option_2 || '',
-      body.option_3 || '',
-      body.option_4 || '',
-      body.option_5 || '',
-      body.option_6 || '',
-      body.total_value || 0,
-      body.discount_percentage || 0,
-      body.discount_value || 0,
-      body.value || 0,
-      body.stock || 0,
-      body.status || 'Active',
-      now,
-      now,
+      newId,                        // A - id
+      body.bundling_name,           // B - bundling_name
+      body.option_1 || '',          // C - option_1
+      body.option_2 || '',          // D - option_2
+      body.option_3 || '',          // E - option_3
+      body.option_4 || '',          // F - option_4
+      body.option_5 || '',          // G - option_5
+      body.option_6 || '',          // H - option_6
+      body.total_value || 0,        // I - total_value
+      body.discount_percentage || 0,// J - discount_percentage
+      body.discount_value || 0,     // K - discount_value
+      body.value || 0,              // L - value
+      stockFormula,                 // M - stock (formula that auto-adjusts)
+      body.status || 'Active',      // N - status
+      now,                          // O - created_at
+      now,                          // P - update_at
     ];
 
     await sheets.spreadsheets.values.append({
@@ -204,31 +212,43 @@ export async function PUT(request) {
 
     const now = new Date().toISOString();
 
-    const updatedRow = [
-      body.id,
-      body.bundling_name,
-      body.option_1 || '',
-      body.option_2 || '',
-      body.option_3 || '',
-      body.option_4 || '',
-      body.option_5 || '',
-      body.option_6 || '',
-      body.total_value || 0,
-      body.discount_percentage || 0,
-      body.discount_value || 0,
-      body.value || 0,
-      body.stock || 0,
-      body.status || 'Active',
-      body.created_at || now,
-      now,
+    // Update row WITHOUT touching stock column (column M)
+    // We use batchUpdate to skip column M
+    const data = [
+      {
+        // Update columns A-L (before stock)
+        range: `${BUNDLING_SHEET}!A${body.rowIndex}:L${body.rowIndex}`,
+        values: [[
+          body.id,
+          body.bundling_name,
+          body.option_1 || '',
+          body.option_2 || '',
+          body.option_3 || '',
+          body.option_4 || '',
+          body.option_5 || '',
+          body.option_6 || '',
+          body.total_value || 0,
+          body.discount_percentage || 0,
+          body.discount_value || 0,
+          body.value || 0,
+        ]]
+      },
+      {
+        // Update columns N-P (after stock, skip M)
+        range: `${BUNDLING_SHEET}!N${body.rowIndex}:P${body.rowIndex}`,
+        values: [[
+          body.status || 'Active',
+          body.created_at || now,
+          now,
+        ]]
+      }
     ];
 
-    await sheets.spreadsheets.values.update({
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${BUNDLING_SHEET}!A${body.rowIndex}:P${body.rowIndex}`,
-      valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [updatedRow],
+        valueInputOption: 'USER_ENTERED',
+        data: data,
       },
     });
 
@@ -260,6 +280,25 @@ export async function DELETE(request) {
 
     const sheets = await getSheetsClient();
 
+    // Get sheet properties to find the correct sheetId
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+
+    // Find the sheet with name 'master-bundling'
+    const sheet = spreadsheet.data.sheets.find(
+      s => s.properties.title === BUNDLING_SHEET
+    );
+
+    if (!sheet) {
+      return NextResponse.json(
+        { error: 'Sheet not found' },
+        { status: 404 }
+      );
+    }
+
+    const sheetId = sheet.properties.sheetId;
+
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
       requestBody: {
@@ -267,7 +306,7 @@ export async function DELETE(request) {
           {
             deleteDimension: {
               range: {
-                sheetId: 0, // Adjust if needed
+                sheetId: sheetId,
                 dimension: 'ROWS',
                 startIndex: parseInt(rowIndex) - 1,
                 endIndex: parseInt(rowIndex),

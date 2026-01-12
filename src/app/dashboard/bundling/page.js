@@ -22,7 +22,7 @@ export default function BundlingPage() {
   const [GWPOptions, setGWPOptions] = useState([]);
   const [prices, setPrices] = useState({});
 
-  // Form state
+  // Form state (REMOVED stock from form)
   const [formData, setFormData] = useState({
     bundling_name: '',
     option_1: '',
@@ -35,7 +35,7 @@ export default function BundlingPage() {
     discount_percentage: 0,
     discount_value: 0,
     value: 0,
-    stock: 0,
+    // NO stock field here
     status: 'Active',
   });
 
@@ -156,7 +156,7 @@ export default function BundlingPage() {
       discount_percentage: 0,
       discount_value: 0,
       value: 0,
-      stock: 0,
+      // NO stock
       status: 'Active',
     });
     setShowModal(true);
@@ -177,7 +177,7 @@ export default function BundlingPage() {
       discount_percentage: item.discount_percentage,
       discount_value: item.discount_value,
       value: item.value,
-      stock: item.stock,
+      // NO stock
       status: item.status,
     });
     setShowModal(true);
@@ -539,7 +539,8 @@ export default function BundlingPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Options 3-6 in ONE ROW */}
+                <div className="grid grid-cols-4 gap-3">
                   <div>
                     <label className="block text-sm font-semibold text-primary mb-2">
                       Option 3 (GWP)
@@ -547,9 +548,9 @@ export default function BundlingPage() {
                     <select
                       value={formData.option_3}
                       onChange={(e) => handleFormChange('option_3', e.target.value)}
-                      className="input-field"
+                      className="input-field text-xs"
                     >
-                      <option value="">Select GWP</option>
+                      <option value="">Select</option>
                       {GWPOptions.map((opt) => (
                         <option key={opt} value={opt}>
                           {opt}
@@ -565,9 +566,9 @@ export default function BundlingPage() {
                     <select
                       value={formData.option_4}
                       onChange={(e) => handleFormChange('option_4', e.target.value)}
-                      className="input-field"
+                      className="input-field text-xs"
                     >
-                      <option value="">Select GWP</option>
+                      <option value="">Select</option>
                       {GWPOptions.map((opt) => (
                         <option key={opt} value={opt}>
                           {opt}
@@ -583,9 +584,9 @@ export default function BundlingPage() {
                     <select
                       value={formData.option_5}
                       onChange={(e) => handleFormChange('option_5', e.target.value)}
-                      className="input-field"
+                      className="input-field text-xs"
                     >
-                      <option value="">Select GWP</option>
+                      <option value="">Select</option>
                       {GWPOptions.map((opt) => (
                         <option key={opt} value={opt}>
                           {opt}
@@ -601,9 +602,9 @@ export default function BundlingPage() {
                     <select
                       value={formData.option_6}
                       onChange={(e) => handleFormChange('option_6', e.target.value)}
-                      className="input-field"
+                      className="input-field text-xs"
                     >
-                      <option value="">Select GWP</option>
+                      <option value="">Select</option>
                       {GWPOptions.map((opt) => (
                         <option key={opt} value={opt}>
                           {opt}
@@ -625,10 +626,11 @@ export default function BundlingPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Discount Percentage, Discount Value, Final Value, and Status in ONE ROW */}
+                <div className="grid grid-cols-4 gap-3">
                   <div>
                     <label className="block text-sm font-semibold text-primary mb-2">
-                      Discount Percentage (%)
+                      Discount (%)
                     </label>
                     <input
                       type="number"
@@ -641,7 +643,7 @@ export default function BundlingPage() {
 
                   <div>
                     <label className="block text-sm font-semibold text-primary mb-2">
-                      Discount Value (Rp)
+                      Discount (Rp)
                     </label>
                     <input
                       type="number"
@@ -661,20 +663,6 @@ export default function BundlingPage() {
                       step="0.01"
                       value={formData.value}
                       onChange={(e) => handleFormChange('value', e.target.value)}
-                      className="input-field"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-primary mb-2">
-                      Stock
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.stock}
-                      onChange={(e) => handleFormChange('stock', e.target.value)}
                       className="input-field"
                     />
                   </div>
