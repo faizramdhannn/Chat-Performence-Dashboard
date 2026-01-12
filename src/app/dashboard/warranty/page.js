@@ -168,8 +168,8 @@ export default function WarrantyPage() {
     });
 
     setPivotData({
-      rows: uniqueChannels,        // channels sebagai baris
-      columns: sortedMonthYears,   // month-years sebagai kolom
+      rows: uniqueChannels,
+      columns: sortedMonthYears,
       matrix: matrix,
       rowTotals: rowTotals,
       columnTotals: columnTotals,

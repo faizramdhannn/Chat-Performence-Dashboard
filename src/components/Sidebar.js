@@ -68,42 +68,56 @@ export default function Sidebar() {
       {
         href: "/dashboard",
         label: "Dashboard",
+        icon: "📊",
         permission: permissions.dashboard,
       },
       {
         href: "/dashboard/create",
         label: "Chat Creation",
+        icon: "💬",
         permission: permissions.chatCreation,
       },
       {
         href: "/dashboard/analytics",
         label: "Analytics",
+        icon: "📈",
         permission: permissions.analytics,
       },
       {
         href: "/dashboard/warranty",
         label: "Warranty",
+        icon: "🛡️",
         permission: permissions.warranty,
+      },
+      {
+        href: "/dashboard/bundling",
+        label: "Bundling",
+        icon: "📦",
+        permission: permissions.bundling,
       },
       {
         href: "/dashboard/stock",
         label: "Stock",
+        icon: "📦",
         permission: permissions.stock,
       },
       {
         href: "/dashboard/registrations",
         label: "Registration Requests",
+        icon: "📝",
         permission: permissions.registrations,
         badge: pendingCount,
       },
       {
         href: "/dashboard/users",
         label: "User Management",
+        icon: "👥",
         permission: permissions.userManagement,
       },
       {
         href: "/dashboard/settings",
         label: "Settings",
+        icon: "⚙️",
         permission: permissions.settings,
       },
     ];
@@ -189,7 +203,10 @@ export default function Sidebar() {
                   className="block px-4 py-3 rounded-lg transition-all duration-300 relative text-white/40 hover:bg-white/5 cursor-not-allowed"
                 >
                   <div className="flex items-center justify-between">
-                    <span>{item.label}</span>
+                    <div className="flex items-center gap-2">
+                      {item.icon && <span>{item.icon}</span>}
+                      <span>{item.label}</span>
+                    </div>
                     <span className="text-xs">🔒</span>
                   </div>
                 </div>
@@ -208,7 +225,10 @@ export default function Sidebar() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span>{item.label}</span>
+                  <div className="flex items-center gap-2">
+                    {item.icon && <span>{item.icon}</span>}
+                    <span>{item.label}</span>
+                  </div>
                   {item.badge > 0 && (
                     <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center">
                       {item.badge}

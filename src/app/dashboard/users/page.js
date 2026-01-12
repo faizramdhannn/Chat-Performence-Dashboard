@@ -27,6 +27,7 @@ export default function UsersPage() {
     chat_creation: false,
     analytics: false,
     warranty: false,
+    bundling: false,
     stock: false,
     registrations: false,
     user_management: false,
@@ -38,6 +39,7 @@ export default function UsersPage() {
     chat_creation: 'Chat Creation',
     analytics: 'Analytics',
     warranty: 'Warranty',
+    bundling: 'Bundling',
     stock: 'Stock',
     registrations: 'Registration Requests',
     user_management: 'User Management',
@@ -250,6 +252,7 @@ export default function UsersPage() {
       chat_creation: false,
       analytics: false,
       warranty: false,
+      bundling: false,
       stock: false,
       registrations: false,
       user_management: false,
@@ -270,6 +273,7 @@ export default function UsersPage() {
       chat_creation: user.chat_creation === 'TRUE' || user.chat_creation === true,
       analytics: user.analytics === 'TRUE' || user.analytics === true,
       warranty: user.warranty === 'TRUE' || user.warranty === true,
+      bundling: user.bundling === 'TRUE' || user.bundling === true,
       stock: user.stock === 'TRUE' || user.stock === true,
       registrations: user.registrations === 'TRUE' || user.registrations === true,
       user_management: user.user_management === 'TRUE' || user.user_management === true,
@@ -290,6 +294,7 @@ export default function UsersPage() {
       chat_creation: user.chat_creation === 'TRUE' || user.chat_creation === true,
       analytics: user.analytics === 'TRUE' || user.analytics === true,
       warranty: user.warranty === 'TRUE' || user.warranty === true,
+      bundling: user.bundling === 'TRUE' || user.bundling === true,
       stock: user.stock === 'TRUE' || user.stock === true,
       registrations: user.registrations === 'TRUE' || user.registrations === true,
       user_management: user.user_management === 'TRUE' || user.user_management === true,
@@ -304,6 +309,7 @@ export default function UsersPage() {
     if (user.chat_creation === 'TRUE' || user.chat_creation === true) activePermissions.push('Chat');
     if (user.analytics === 'TRUE' || user.analytics === true) activePermissions.push('Analytics');
     if (user.warranty === 'TRUE' || user.warranty === true) activePermissions.push('Warranty');
+    if (user.bundling === 'TRUE' || user.bundling === true) activePermissions.push('Bundling');
     if (user.stock === 'TRUE' || user.stock === true) activePermissions.push('Stock');
     if (user.registrations === 'TRUE' || user.registrations === true) activePermissions.push('Registrations');
     if (user.user_management === 'TRUE' || user.user_management === true) activePermissions.push('Users');
@@ -404,7 +410,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Create/Edit User Modal - Same as before */}
+      {/* Create/Edit User Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -494,7 +500,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Permissions Modal - Same as before */}
+      {/* Permissions Modal */}
       {showPermissionsModal && selectedUserForPermissions && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">

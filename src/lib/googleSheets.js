@@ -73,8 +73,8 @@ class GoogleSheetsService {
   async getAllUsers() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:N`, // UPDATE: A-N untuk include permissions
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `${process.env.USERS_SHEET}!A:O`, // UPDATE: A-O untuk include bundling
       });
 
       const rows = response.data.values;
@@ -120,16 +120,18 @@ class GoogleSheetsService {
         userData.chat_creation || 'FALSE',
         userData.analytics || 'FALSE',
         userData.warranty || 'FALSE',
+        userData.bundling || 'FALSE', // ← BUNDLING ADDED (Column I)
         userData.stock || 'FALSE',
         userData.registrations || 'FALSE',
         userData.user_management || 'FALSE',
         userData.settings || 'FALSE',
-        '', // N: last_activity (empty on create)
+        '', // N: created_at (empty on create, will be filled by formula or manually)
+        '', // O: last_activity (empty on create)
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:N`, // UPDATE: A-N
+        range: `${process.env.USERS_SHEET}!A:O`, // UPDATE: A-O
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -160,16 +162,18 @@ class GoogleSheetsService {
         userData.chat_creation || 'FALSE',
         userData.analytics || 'FALSE',
         userData.warranty || 'FALSE',
+        userData.bundling || 'FALSE', // ← BUNDLING ADDED (Column I)
         userData.stock || 'FALSE',
         userData.registrations || 'FALSE',
         userData.user_management || 'FALSE',
         userData.settings || 'FALSE',
-        userData.last_activity || '', // N: last_activity
+        userData.created_at || '', // N: created_at
+        userData.last_activity || '', // O: last_activity
       ]];
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A${rowIndex}:N${rowIndex}`, // UPDATE: A-N
+        range: `${process.env.USERS_SHEET}!A${rowIndex}:O${rowIndex}`, // UPDATE: A-O
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -200,10 +204,10 @@ class GoogleSheetsService {
         throw new Error('User not found');
       }
 
-      // Update only column N (last_activity)
+      // Update only column O (last_activity) - UPDATED from N to O
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!N${user.rowIndex}`,
+        range: `${process.env.USERS_SHEET}!O${user.rowIndex}`, // UPDATE: Column O
         valueInputOption: 'USER_ENTERED',
         resource: {
           values: [[timestamp]]
@@ -222,7 +226,7 @@ class GoogleSheetsService {
     try {
       const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
+        spreadsheetId: this.usersSpreadsheetId,
         range: `${sheetName}!A:F`,
       });
 
@@ -243,7 +247,6 @@ class GoogleSheetsService {
         .filter(reg => reg.status === 'pending');
     } catch (error) {
       console.error('Error fetching registrations:', error);
-      // If sheet doesn't exist, return empty array
       return [];
     }
   }
@@ -262,7 +265,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
+        spreadsheetId: this.usersSpreadsheetId,
         range: `${sheetName}!A:F`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -299,7 +302,7 @@ class GoogleSheetsService {
       ]];
 
       await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
+        spreadsheetId: this.usersSpreadsheetId,
         range: `${sheetName}!A${registration.rowIndex}:F${registration.rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -324,16 +327,18 @@ class GoogleSheetsService {
         permissions.chat_creation || 'FALSE',
         permissions.analytics || 'FALSE',
         permissions.warranty || 'FALSE',
+        permissions.bundling || 'FALSE', // ← BUNDLING ADDED (Column I)
         permissions.stock || 'FALSE',
         permissions.registrations || 'FALSE',
         permissions.user_management || 'FALSE',
         permissions.settings || 'FALSE',
-        '', // N: last_activity (empty on create)
+        '', // N: created_at (empty on create)
+        '', // O: last_activity (empty on create)
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
-        range: `${process.env.USERS_SHEET}!A:N`, // UPDATE: A-N
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `${process.env.USERS_SHEET}!A:O`, // UPDATE: A-O
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
@@ -367,7 +372,7 @@ class GoogleSheetsService {
   async getSettings() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
+        spreadsheetId: this.usersSpreadsheetId,
         range: `${process.env.SETTINGS_SHEET}!A:B`,
       });
 
@@ -395,7 +400,7 @@ class GoogleSheetsService {
       const values = Object.entries(settings).map(([key, value]) => [key, value]);
 
       const response = await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.usersSpreadsheetId, // PAKAI spreadsheet terpisah
+        spreadsheetId: this.usersSpreadsheetId,
         range: `${process.env.SETTINGS_SHEET}!A:B`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -412,7 +417,7 @@ class GoogleSheetsService {
   async getMasterData() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
+        spreadsheetId: this.spreadsheetId,
         range: `${process.env.MASTER_DATA_SHEET}!A:O`,
       });
 
@@ -450,7 +455,7 @@ class GoogleSheetsService {
       const sheetName = process.env.DATA_SHEET;
 
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
+        spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!A:Q`,
       });
 
@@ -503,7 +508,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
+        spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!A:Q`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -543,7 +548,7 @@ class GoogleSheetsService {
       ]];
 
       const response = await this.sheets.spreadsheets.values.update({
-        spreadsheetId: this.spreadsheetId, // Tetap di spreadsheet utama
+        spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!A${rowIndex}:P${rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
@@ -589,7 +594,7 @@ class GoogleSheetsService {
   async getScheduleData() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.spreadsheetId, // Main spreadsheet
+        spreadsheetId: this.spreadsheetId,
         range: 'Jadwal CS!A:J',
       });
 
@@ -718,7 +723,7 @@ class GoogleSheetsService {
         return [];
       }
 
-      const headers = rows[0]; // SKU, Product_name, Category, Grade, HPP, HPJ
+      const headers = rows[0];
       const data = rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
@@ -833,7 +838,7 @@ class GoogleSheetsService {
 
       for (let i = 1; i < rows.length; i++) {
         if (rows[i][0] === type) {
-          rowIndex = i + 1; // +1 because sheets are 1-indexed
+          rowIndex = i + 1;
           break;
         }
       }
