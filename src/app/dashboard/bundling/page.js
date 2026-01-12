@@ -42,6 +42,7 @@ export default function BundlingPage() {
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('master'); // master, ready, oos
 
   useEffect(() => {
     fetchOptions();
@@ -251,7 +252,18 @@ export default function BundlingPage() {
                          item.option_1.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.option_2.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    // View mode filtering
+    let matchesView = true;
+    const stock = parseInt(item.stock) || 0;
+    if (viewMode === 'ready') {
+      matchesView = stock >= 3;
+    } else if (viewMode === 'oos') {
+      matchesView = stock < 3;
+    }
+    // viewMode === 'master' shows all
+    
+    return matchesSearch && matchesStatus && matchesView;
   });
 
   if (loading) {
@@ -269,36 +281,67 @@ export default function BundlingPage() {
     <div>
       <Header title="Bundling Management" />
 
-      <div className="card p-6 mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-primary">Bundling List</h2>
-          <button onClick={openCreateModal} className="btn-primary">
-            + Create Bundling
+      <div className="card p-4 mb-4">
+        {/* Compact Header with View Selector */}
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+          <h2 className="text-xl font-bold text-primary">Bundling List</h2>
+          
+          {/* View Mode Selector */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode('master')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                viewMode === 'master'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              📋 Master
+            </button>
+            <button
+              onClick={() => setViewMode('ready')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                viewMode === 'ready'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              ✅ Ready (≥3)
+            </button>
+            <button
+              onClick={() => setViewMode('oos')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                viewMode === 'oos'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              ⚠️ OOS (&lt;3)
+            </button>
+          </div>
+
+          <button onClick={openCreateModal} className="btn-primary text-sm">
+            + Create
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-primary mb-2">
-              Search
-            </label>
+        {/* Compact Search and Filter */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div className="md:col-span-2">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name or product..."
-              className="input-field"
+              className="input-field w-full text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-primary mb-2">
-              Status
-            </label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="input-field"
+              className="input-field w-full text-sm"
             >
               <option value="all">All Status</option>
               <option value="Active">Active</option>
@@ -308,30 +351,31 @@ export default function BundlingPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="stat-card-accent">
-          <h3 className="text-sm text-center font-semibold text-primary/80 mb-2 uppercase">
-            Total Bundling
+      {/* Compact Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="stat-card-accent py-3">
+          <h3 className="text-xs text-center font-semibold text-primary/80 mb-1 uppercase">
+            Total
           </h3>
-          <div className="text-4xl text-center font-bold text-primary">
+          <div className="text-2xl text-center font-bold text-primary">
             {filteredData.length}
           </div>
         </div>
 
-        <div className="stat-card">
-          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+        <div className="stat-card py-3">
+          <h3 className="text-xs text-center font-semibold text-gray-600 mb-1 uppercase">
             Active
           </h3>
-          <div className="text-4xl text-center font-bold text-green-600">
+          <div className="text-2xl text-center font-bold text-green-600">
             {filteredData.filter(item => item.status === 'Active').length}
           </div>
         </div>
 
-        <div className="stat-card">
-          <h3 className="text-sm text-center font-semibold text-gray-600 mb-2 uppercase">
+        <div className="stat-card py-3">
+          <h3 className="text-xs text-center font-semibold text-gray-600 mb-1 uppercase">
             Inactive
           </h3>
-          <div className="text-4xl text-center font-bold text-red-600">
+          <div className="text-2xl text-center font-bold text-red-600">
             {filteredData.filter(item => item.status === 'Inactive').length}
           </div>
         </div>
@@ -339,80 +383,94 @@ export default function BundlingPage() {
 
       <div className="card overflow-hidden">
         {filteredData.length === 0 ? (
-          <div className="text-center py-16">
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No Bundling Found</h3>
-            <p className="text-gray-500">Create your first bundling to get started</p>
+          <div className="text-center py-12">
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">
+              {viewMode === 'ready' ? 'No Ready Stock' : viewMode === 'oos' ? 'No Low Stock' : 'No Bundling Found'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {viewMode === 'master' ? 'Create your first bundling to get started' : 'No items match this filter'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead className="bg-primary text-white">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">ID</th>
-                  <th className="px-4 py-3 text-left font-semibold">Bundling Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Products</th>
-                  <th className="px-4 py-3 text-right font-semibold">Total Value</th>
-                  <th className="px-4 py-3 text-right font-semibold">Discount</th>
-                  <th className="px-4 py-3 text-right font-semibold">Final Value</th>
-                  <th className="px-4 py-3 text-center font-semibold">Stock</th>
-                  <th className="px-4 py-3 text-center font-semibold">Status</th>
-                  <th className="px-4 py-3 text-center font-semibold">Actions</th>
+                  <th className="px-3 py-2 text-left font-semibold text-xs">ID</th>
+                  <th className="px-3 py-2 text-left font-semibold text-xs">Bundling Name</th>
+                  <th className="px-3 py-2 text-left font-semibold text-xs">Products</th>
+                  <th className="px-3 py-2 text-right font-semibold text-xs">Total</th>
+                  <th className="px-3 py-2 text-right font-semibold text-xs">Discount</th>
+                  <th className="px-3 py-2 text-right font-semibold text-xs">Final</th>
+                  <th className="px-3 py-2 text-center font-semibold text-xs">Stock</th>
+                  <th className="px-3 py-2 text-center font-semibold text-xs">Status</th>
+                  <th className="px-3 py-2 text-center font-semibold text-xs">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredData.map((item, index) => (
-                  <tr
-                    key={index}
-                    className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-medium">{item.id}</td>
-                    <td className="px-4 py-3 font-semibold text-primary">{item.bundling_name}</td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm">
-                        {[item.option_1, item.option_2, item.option_3, item.option_4, item.option_5, item.option_6]
-                          .filter(Boolean)
-                          .map((opt, i) => (
-                            <div key={i} className="text-gray-600">• {opt}</div>
-                          ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold">
-                      Rp {item.total_value.toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-4 py-3 text-right text-red-600">
-                      {item.discount_percentage.toFixed(1)}% (Rp {item.discount_value.toLocaleString('id-ID')})
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-green-600">
-                      Rp {item.value.toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-4 py-3 text-center">{item.stock}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        item.status === 'Active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => openEditModal(item)}
-                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredData.map((item, index) => {
+                  const stock = parseInt(item.stock) || 0;
+                  const stockColor = stock >= 3 ? 'text-green-600' : 'text-red-600';
+                  
+                  return (
+                    <tr
+                      key={index}
+                      className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
+                    >
+                      <td className="px-3 py-2 font-medium text-xs">{item.id}</td>
+                      <td className="px-3 py-2 font-semibold text-primary">{item.bundling_name}</td>
+                      <td className="px-3 py-2">
+                        <div className="text-xs space-y-0.5">
+                          {[item.option_1, item.option_2, item.option_3, item.option_4, item.option_5, item.option_6]
+                            .filter(Boolean)
+                            .map((opt, i) => (
+                              <div key={i} className="text-gray-600 truncate max-w-xs">• {opt}</div>
+                            ))}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold text-xs">
+                        Rp {item.total_value.toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-3 py-2 text-right text-red-600 text-xs">
+                        {item.discount_percentage.toFixed(1)}%
+                        <div className="text-xs text-gray-500">
+                          (Rp {item.discount_value.toLocaleString('id-ID')})
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right font-bold text-green-600">
+                        Rp {item.value.toLocaleString('id-ID')}
+                      </td>
+                      <td className={`px-3 py-2 text-center font-bold ${stockColor}`}>
+                        {item.stock}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          item.status === 'Active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex justify-center gap-1">
+                          <button
+                            onClick={() => openEditModal(item)}
+                            className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item)}
+                            className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
