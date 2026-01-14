@@ -566,6 +566,11 @@ export default function BundlingPage() {
                         </option>
                       ))}
                     </select>
+                    {formData.option_1 && prices[formData.option_1] && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 Rp {prices[formData.option_1].HPJ.toLocaleString('id-ID')}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -584,6 +589,11 @@ export default function BundlingPage() {
                         </option>
                       ))}
                     </select>
+                    {formData.option_2 && prices[formData.option_2] && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 Rp {prices[formData.option_2].HPJ.toLocaleString('id-ID')}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -605,6 +615,11 @@ export default function BundlingPage() {
                         </option>
                       ))}
                     </select>
+                    {formData.option_3 && prices[formData.option_3] && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 Rp {prices[formData.option_3].HPT.toLocaleString('id-ID')}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -623,6 +638,11 @@ export default function BundlingPage() {
                         </option>
                       ))}
                     </select>
+                    {formData.option_4 && prices[formData.option_4] && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 Rp {prices[formData.option_4].HPT.toLocaleString('id-ID')}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -641,6 +661,11 @@ export default function BundlingPage() {
                         </option>
                       ))}
                     </select>
+                    {formData.option_5 && prices[formData.option_5] && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 Rp {prices[formData.option_5].HPT.toLocaleString('id-ID')}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -659,6 +684,11 @@ export default function BundlingPage() {
                         </option>
                       ))}
                     </select>
+                    {formData.option_6 && prices[formData.option_6] && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        💰 Rp {prices[formData.option_6].HPT.toLocaleString('id-ID')}
+                      </p>
+                    )}
                   </div>
                 </div>
 
