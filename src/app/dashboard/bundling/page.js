@@ -88,52 +88,100 @@ export default function BundlingPage() {
   };
 
   const calculateTotalValue = () => {
-    let total = 0;
+    let nonGWPTotal = 0; // Total for Option 1 & 2 (will be affected by discount)
+    let gwpTotal = 0;    // Total for Option 3-6 (NOT affected by discount)
 
+    // Calculate Option 1 & 2 (Non-GWP products)
     if (formData.option_1 && prices[formData.option_1]) {
-      total += prices[formData.option_1].HPJ || 0;
+      nonGWPTotal += prices[formData.option_1].HPJ || 0;
     }
     if (formData.option_2 && prices[formData.option_2]) {
-      total += prices[formData.option_2].HPJ || 0;
-    }
-    if (formData.option_3 && prices[formData.option_3]) {
-      total += prices[formData.option_3].HPT || 0;
-    }
-    if (formData.option_4 && prices[formData.option_4]) {
-      total += prices[formData.option_4].HPT || 0;
-    }
-    if (formData.option_5 && prices[formData.option_5]) {
-      total += prices[formData.option_5].HPT || 0;
-    }
-    if (formData.option_6 && prices[formData.option_6]) {
-      total += prices[formData.option_6].HPT || 0;
+      nonGWPTotal += prices[formData.option_2].HPJ || 0;
     }
 
-    setFormData(prev => ({
-      ...prev,
-      total_value: total,
-      value: total - prev.discount_value,
-    }));
+    // Calculate Option 3-6 (GWP products - no discount)
+    if (formData.option_3 && prices[formData.option_3]) {
+      gwpTotal += prices[formData.option_3].HPT || 0;
+    }
+    if (formData.option_4 && prices[formData.option_4]) {
+      gwpTotal += prices[formData.option_4].HPT || 0;
+    }
+    if (formData.option_5 && prices[formData.option_5]) {
+      gwpTotal += prices[formData.option_5].HPT || 0;
+    }
+    if (formData.option_6 && prices[formData.option_6]) {
+      gwpTotal += prices[formData.option_6].HPT || 0;
+    }
+
+    const totalBeforeDiscount = nonGWPTotal + gwpTotal;
+
+    setFormData(prev => {
+      // Calculate discount only on Non-GWP products
+      const discountOnNonGWP = (nonGWPTotal * prev.discount_percentage) / 100;
+      const finalValue = (nonGWPTotal - discountOnNonGWP) + gwpTotal;
+
+      return {
+        ...prev,
+        total_value: totalBeforeDiscount,
+        discount_value: discountOnNonGWP,
+        value: finalValue,
+      };
+    });
   };
 
   const handleFormChange = (key, value) => {
     setFormData(prev => {
       const updated = { ...prev, [key]: value };
 
+      // Calculate Non-GWP total (Option 1 & 2)
+      let nonGWPTotal = 0;
+      const opt1 = key === 'option_1' ? value : prev.option_1;
+      const opt2 = key === 'option_2' ? value : prev.option_2;
+      
+      if (opt1 && prices[opt1]) {
+        nonGWPTotal += prices[opt1].HPJ || 0;
+      }
+      if (opt2 && prices[opt2]) {
+        nonGWPTotal += prices[opt2].HPJ || 0;
+      }
+
+      // Calculate GWP total (Option 3-6)
+      let gwpTotal = 0;
+      const opt3 = key === 'option_3' ? value : prev.option_3;
+      const opt4 = key === 'option_4' ? value : prev.option_4;
+      const opt5 = key === 'option_5' ? value : prev.option_5;
+      const opt6 = key === 'option_6' ? value : prev.option_6;
+
+      if (opt3 && prices[opt3]) {
+        gwpTotal += prices[opt3].HPT || 0;
+      }
+      if (opt4 && prices[opt4]) {
+        gwpTotal += prices[opt4].HPT || 0;
+      }
+      if (opt5 && prices[opt5]) {
+        gwpTotal += prices[opt5].HPT || 0;
+      }
+      if (opt6 && prices[opt6]) {
+        gwpTotal += prices[opt6].HPT || 0;
+      }
+
       if (key === 'discount_percentage') {
         const percentage = parseFloat(value) || 0;
-        const discountVal = (prev.total_value * percentage) / 100;
+        const discountVal = (nonGWPTotal * percentage) / 100; // Only discount Non-GWP
         updated.discount_value = discountVal;
-        updated.value = prev.total_value - discountVal;
+        updated.discount_percentage = percentage;
+        updated.value = (nonGWPTotal - discountVal) + gwpTotal; // Non-GWP after discount + GWP full price
       } else if (key === 'discount_value') {
         const discountVal = parseFloat(value) || 0;
-        const percentage = prev.total_value > 0 ? (discountVal / prev.total_value) * 100 : 0;
+        const percentage = nonGWPTotal > 0 ? (discountVal / nonGWPTotal) * 100 : 0;
         updated.discount_percentage = percentage;
-        updated.value = prev.total_value - discountVal;
+        updated.discount_value = discountVal;
+        updated.value = (nonGWPTotal - discountVal) + gwpTotal;
       } else if (key === 'value') {
         const finalValue = parseFloat(value) || 0;
-        const discountVal = prev.total_value - finalValue;
-        const percentage = prev.total_value > 0 ? (discountVal / prev.total_value) * 100 : 0;
+        const nonGWPAfterDiscount = finalValue - gwpTotal; // Remove GWP from final value
+        const discountVal = nonGWPTotal - nonGWPAfterDiscount;
+        const percentage = nonGWPTotal > 0 ? (discountVal / nonGWPTotal) * 100 : 0;
         updated.discount_value = discountVal;
         updated.discount_percentage = percentage;
       }
