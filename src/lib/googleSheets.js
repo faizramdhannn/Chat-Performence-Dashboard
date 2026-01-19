@@ -1,61 +1,61 @@
-import { google } from 'googleapis';
-import path from 'path';
-import bcrypt from 'bcryptjs';
+import { google } from "googleapis";
+import path from "path";
+import bcrypt from "bcryptjs";
 
 class GoogleSheetsService {
   constructor() {
     let auth;
-    
+
     // Check if GOOGLE_CREDENTIALS environment variable exists (for Vercel)
     if (process.env.GOOGLE_CREDENTIALS) {
       try {
         const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
         auth = new google.auth.GoogleAuth({
           credentials: credentials,
-          scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+          scopes: ["https://www.googleapis.com/auth/spreadsheets"],
         });
-        console.log('✅ Using GOOGLE_CREDENTIALS from environment variable');
+        console.log("✅ Using GOOGLE_CREDENTIALS from environment variable");
       } catch (error) {
-        console.error('❌ Failed to parse GOOGLE_CREDENTIALS:', error.message);
-        throw new Error('Invalid GOOGLE_CREDENTIALS format');
+        console.error("❌ Failed to parse GOOGLE_CREDENTIALS:", error.message);
+        throw new Error("Invalid GOOGLE_CREDENTIALS format");
       }
     } else {
       // Fall back to credentials.json file (for local development)
-      const credentialsPath = path.join(process.cwd(), 'credentials.json');
+      const credentialsPath = path.join(process.cwd(), "credentials.json");
       auth = new google.auth.GoogleAuth({
         keyFile: credentialsPath,
-        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        scopes: ["https://www.googleapis.com/auth/spreadsheets"],
       });
-      console.log('✅ Using credentials.json from file system');
+      console.log("✅ Using credentials.json from file system");
     }
-    
+
     this.auth = auth;
-    this.sheets = google.sheets({ version: 'v4', auth: this.auth });
-    
+    this.sheets = google.sheets({ version: "v4", auth: this.auth });
+
     // Main data spreadsheet
     this.spreadsheetId = process.env.SPREADSHEET_ID;
-    
+
     // Users & Settings spreadsheet (BARU - Spreadsheet terpisah)
     this.usersSpreadsheetId = process.env.USERS_SPREADSHEET_ID;
-    
+
     // Warranty spreadsheet
     this.warrantySpreadsheetId = process.env.WARRANTY_SPREADSHEET_ID;
-    
+
     // CS Nilai spreadsheet
     this.csNilaiSpreadsheetId = process.env.CS_NILAI_SPREADSHEET_ID;
-    
+
     // Simple cache
     this.cache = {
       data: null,
       timestamp: null,
-      ttl: 30000 // 30 seconds cache
+      ttl: 30000, // 30 seconds cache
     };
   }
 
   // Cache helper
   isCacheValid() {
     if (!this.cache.data || !this.cache.timestamp) return false;
-    return (Date.now() - this.cache.timestamp) < this.cache.ttl;
+    return Date.now() - this.cache.timestamp < this.cache.ttl;
   }
 
   clearCache() {
@@ -65,8 +65,8 @@ class GoogleSheetsService {
 
   // Helper function to capitalize first letter of each word
   toProperCase(str) {
-    if (!str) return '';
-    return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase());
+    if (!str) return "";
+    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
   // ============ USER MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
@@ -74,7 +74,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:O`, // UPDATE: A-O untuk include bundling
+        range: `${process.env.USERS_SHEET}!A:O`,
       });
 
       const rows = response.data.values;
@@ -86,12 +86,12 @@ class GoogleSheetsService {
       return rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
-          obj[header] = row[i] || '';
+          obj[header] = row[i] || "";
         });
         return obj;
       });
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error("Error fetching users:", error);
       throw error;
     }
   }
@@ -99,9 +99,9 @@ class GoogleSheetsService {
   async getUserByUsername(username) {
     try {
       const users = await this.getAllUsers();
-      return users.find(user => user.username === username);
+      return users.find((user) => user.username === username);
     } catch (error) {
-      console.error('Error fetching user:', error);
+      console.error("Error fetching user:", error);
       throw error;
     }
   }
@@ -109,36 +109,38 @@ class GoogleSheetsService {
   async createUser(userData) {
     try {
       const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
-      const values = [[
-        userData.id || Date.now().toString(),
-        userData.username,
-        hashedPassword,
-        userData.role || 'user', // Legacy field
-        userData.name || userData.username,
-        userData.dashboard || 'FALSE',
-        userData.chat_creation || 'FALSE',
-        userData.analytics || 'FALSE',
-        userData.warranty || 'FALSE',
-        userData.bundling || 'FALSE', // ← BUNDLING ADDED (Column I)
-        userData.stock || 'FALSE',
-        userData.registrations || 'FALSE',
-        userData.user_management || 'FALSE',
-        userData.settings || 'FALSE',
-        '', // N: created_at (empty on create, will be filled by formula or manually)
-        '', // O: last_activity (empty on create)
-      ]];
+
+      const values = [
+        [
+          userData.id || Date.now().toString(),
+          userData.username,
+          hashedPassword,
+          userData.role || "user", // Legacy field
+          userData.name || userData.username,
+          userData.dashboard || "FALSE",
+          userData.chat_creation || "FALSE",
+          userData.analytics || "FALSE",
+          userData.warranty || "FALSE",
+          userData.bundling || "FALSE",
+          userData.stock || "FALSE",
+          userData.registrations || "FALSE",
+          userData.user_management || "FALSE",
+          userData.settings || "FALSE",
+          "", // N: created_at
+          "", // O: last_activity
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:O`, // UPDATE: A-O
-        valueInputOption: 'USER_ENTERED',
+        range: `${process.env.USERS_SHEET}!A:O`,
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error creating user:', error);
+      console.error("Error creating user:", error);
       throw error;
     }
   }
@@ -146,50 +148,56 @@ class GoogleSheetsService {
   async updateUser(rowIndex, userData) {
     try {
       let passwordValue = userData.password;
-      
+
       // Only hash if password is being changed
-      if (userData.password && !userData.password.startsWith('$2')) {
+      if (userData.password && !userData.password.startsWith("$2")) {
         passwordValue = await bcrypt.hash(userData.password, 10);
       }
 
-      const values = [[
-        userData.id,
-        userData.username,
-        passwordValue,
-        userData.role || 'user', // Legacy field
-        userData.name,
-        userData.dashboard || 'FALSE',
-        userData.chat_creation || 'FALSE',
-        userData.analytics || 'FALSE',
-        userData.warranty || 'FALSE',
-        userData.bundling || 'FALSE', // ← BUNDLING ADDED (Column I)
-        userData.stock || 'FALSE',
-        userData.registrations || 'FALSE',
-        userData.user_management || 'FALSE',
-        userData.settings || 'FALSE',
-        userData.created_at || '', // N: created_at
-        userData.last_activity || '', // O: last_activity
-      ]];
+      const values = [
+        [
+          userData.id,
+          userData.username,
+          passwordValue,
+          userData.role || "user", // Legacy field
+          userData.name,
+          userData.dashboard || "FALSE",
+          userData.chat_creation || "FALSE",
+          userData.analytics || "FALSE",
+          userData.warranty || "FALSE",
+          userData.bundling || "FALSE",
+          userData.stock || "FALSE",
+          userData.registrations || "FALSE",
+          userData.user_management || "FALSE",
+          userData.settings || "FALSE",
+          userData.created_at || "", // N: created_at
+          userData.last_activity || "", // O: last_activity
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A${rowIndex}:O${rowIndex}`, // UPDATE: A-O
-        valueInputOption: 'USER_ENTERED',
+        range: `${process.env.USERS_SHEET}!A${rowIndex}:O${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error updating user:', error);
+      console.error("Error updating user:", error);
       throw error;
     }
   }
 
   async deleteUser(rowIndex) {
     try {
-      return await this.deleteRow(this.usersSpreadsheetId, process.env.USERS_SHEET, rowIndex);
+      return await this.deleteRow(
+        this.usersSpreadsheetId,
+        process.env.USERS_SHEET,
+        rowIndex,
+      );
     } catch (error) {
-      console.error('Error deleting user:', error);
+      console.error("Error deleting user:", error);
       throw error;
     }
   }
@@ -198,25 +206,25 @@ class GoogleSheetsService {
   async updateUserLastActivity(username, timestamp) {
     try {
       const users = await this.getAllUsers();
-      const user = users.find(u => u.username === username);
-      
+      const user = users.find((u) => u.username === username);
+
       if (!user) {
-        throw new Error('User not found');
+        throw new Error("User not found");
       }
 
-      // Update only column O (last_activity) - UPDATED from N to O
+      // Update only column O (last_activity)
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!O${user.rowIndex}`, // UPDATE: Column O
-        valueInputOption: 'USER_ENTERED',
+        range: `${process.env.USERS_SHEET}!O${user.rowIndex}`,
+        valueInputOption: "USER_ENTERED",
         resource: {
-          values: [[timestamp]]
+          values: [[timestamp]],
         },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error updating last activity:', error);
+      console.error("Error updating last activity:", error);
       throw error;
     }
   }
@@ -224,7 +232,7 @@ class GoogleSheetsService {
   // ============ REGISTRATION MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
   async getPendingRegistrations() {
     try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
+      const sheetName = process.env.REGISTRATIONS_SHEET || "registrations";
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
         range: `${sheetName}!A:F`,
@@ -236,134 +244,145 @@ class GoogleSheetsService {
       }
 
       const headers = rows[0];
-      return rows.slice(1)
+      return rows
+        .slice(1)
         .map((row, index) => {
           const obj = { rowIndex: index + 2 };
           headers.forEach((header, i) => {
-            obj[header] = row[i] || '';
+            obj[header] = row[i] || "";
           });
           return obj;
         })
-        .filter(reg => reg.status === 'pending');
+        .filter((reg) => reg.status === "pending");
     } catch (error) {
-      console.error('Error fetching registrations:', error);
+      console.error("Error fetching registrations:", error);
       return [];
     }
   }
 
   async createPendingRegistration(data) {
     try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
-      
-      const values = [[
-        data.id,
-        data.username,
-        data.password,
-        data.name,
-        data.status,
-        data.requestedAt
-      ]];
+      const sheetName = process.env.REGISTRATIONS_SHEET || "registrations";
+
+      const values = [
+        [
+          data.id,
+          data.username,
+          data.password,
+          data.name,
+          data.status,
+          data.requestedAt,
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
         range: `${sheetName}!A:F`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error creating registration:', error);
+      console.error("Error creating registration:", error);
       throw error;
     }
   }
 
   async approveRegistration(registrationId, role, permissions) {
     try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
+      const sheetName = process.env.REGISTRATIONS_SHEET || "registrations";
       const registrations = await this.getPendingRegistrations();
-      const registration = registrations.find(r => r.id === registrationId);
+      const registration = registrations.find((r) => r.id === registrationId);
 
       if (!registration) {
-        throw new Error('Registration not found');
+        throw new Error("Registration not found");
       }
 
       // Create user in users sheet with permissions
       await this.createUserFromRegistration(registration, role, permissions);
 
       // Update registration status
-      const values = [[
-        registration.id,
-        registration.username,
-        registration.password,
-        registration.name,
-        'approved',
-        registration.requestedAt
-      ]];
+      const values = [
+        [
+          registration.id,
+          registration.username,
+          registration.password,
+          registration.name,
+          "approved",
+          registration.requestedAt,
+        ],
+      ];
 
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
         range: `${sheetName}!A${registration.rowIndex}:F${registration.rowIndex}`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return { success: true };
     } catch (error) {
-      console.error('Error approving registration:', error);
+      console.error("Error approving registration:", error);
       throw error;
     }
   }
 
   async createUserFromRegistration(registration, role, permissions) {
     try {
-      const values = [[
-        registration.id,
-        registration.username,
-        registration.password, // Already hashed
-        role || 'user', // Legacy field
-        registration.name,
-        permissions.dashboard || 'FALSE',
-        permissions.chat_creation || 'FALSE',
-        permissions.analytics || 'FALSE',
-        permissions.warranty || 'FALSE',
-        permissions.bundling || 'FALSE', // ← BUNDLING ADDED (Column I)
-        permissions.stock || 'FALSE',
-        permissions.registrations || 'FALSE',
-        permissions.user_management || 'FALSE',
-        permissions.settings || 'FALSE',
-        '', // N: created_at (empty on create)
-        '', // O: last_activity (empty on create)
-      ]];
+      const values = [
+        [
+          registration.id,
+          registration.username,
+          registration.password, // Already hashed
+          role || "user", // Legacy field
+          registration.name,
+          permissions.dashboard || "FALSE",
+          permissions.chat_creation || "FALSE",
+          permissions.analytics || "FALSE",
+          permissions.warranty || "FALSE",
+          permissions.bundling || "FALSE",
+          permissions.stock || "FALSE",
+          permissions.registrations || "FALSE",
+          permissions.user_management || "FALSE",
+          permissions.settings || "FALSE",
+          "", // N: created_at
+          "", // O: last_activity
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:O`, // UPDATE: A-O
-        valueInputOption: 'USER_ENTERED',
+        range: `${process.env.USERS_SHEET}!A:O`,
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error creating user from registration:', error);
+      console.error("Error creating user from registration:", error);
       throw error;
     }
   }
 
   async rejectRegistration(registrationId) {
     try {
-      const sheetName = process.env.REGISTRATIONS_SHEET || 'registrations';
+      const sheetName = process.env.REGISTRATIONS_SHEET || "registrations";
       const registrations = await this.getPendingRegistrations();
-      const registration = registrations.find(r => r.id === registrationId);
+      const registration = registrations.find((r) => r.id === registrationId);
 
       if (!registration) {
-        throw new Error('Registration not found');
+        throw new Error("Registration not found");
       }
 
       // Delete the registration row
-      return await this.deleteRow(this.usersSpreadsheetId, sheetName, registration.rowIndex);
+      return await this.deleteRow(
+        this.usersSpreadsheetId,
+        sheetName,
+        registration.rowIndex,
+      );
     } catch (error) {
-      console.error('Error rejecting registration:', error);
+      console.error("Error rejecting registration:", error);
       throw error;
     }
   }
@@ -382,33 +401,36 @@ class GoogleSheetsService {
       }
 
       const settings = {};
-      rows.forEach(row => {
+      rows.forEach((row) => {
         if (row[0]) {
-          settings[row[0]] = row[1] || '';
+          settings[row[0]] = row[1] || "";
         }
       });
 
       return settings;
     } catch (error) {
-      console.error('Error fetching settings:', error);
+      console.error("Error fetching settings:", error);
       throw error;
     }
   }
 
   async updateSettings(settings) {
     try {
-      const values = Object.entries(settings).map(([key, value]) => [key, value]);
+      const values = Object.entries(settings).map(([key, value]) => [
+        key,
+        value,
+      ]);
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
         range: `${process.env.SETTINGS_SHEET}!A:B`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error updating settings:', error);
+      console.error("Error updating settings:", error);
       throw error;
     }
   }
@@ -430,14 +452,15 @@ class GoogleSheetsService {
       const masterData = {};
 
       headers.forEach((header, index) => {
-        masterData[header] = rows.slice(1)
-          .map(row => row[index])
-          .filter(val => val && val.trim() !== '');
+        masterData[header] = rows
+          .slice(1)
+          .map((row) => row[index])
+          .filter((val) => val && val.trim() !== "");
       });
 
       return masterData;
     } catch (error) {
-      console.error('Error fetching master data:', error);
+      console.error("Error fetching master data:", error);
       throw error;
     }
   }
@@ -447,11 +470,11 @@ class GoogleSheetsService {
     try {
       // Check cache first
       if (this.isCacheValid()) {
-        console.log('📦 Using cached data');
+        console.log("📦 Using cached data");
         return this.cache.data;
       }
 
-      console.log('🔄 Fetching fresh data from Google Sheets');
+      console.log("🔄 Fetching fresh data from Google Sheets");
       const sheetName = process.env.DATA_SHEET;
 
       const response = await this.sheets.spreadsheets.values.get({
@@ -468,7 +491,7 @@ class GoogleSheetsService {
       const data = rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
-          obj[header] = row[i] || '';
+          obj[header] = row[i] || "";
         });
         return obj;
       });
@@ -479,7 +502,7 @@ class GoogleSheetsService {
 
       return data;
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error("Error fetching data:", error);
       throw error;
     }
   }
@@ -488,29 +511,31 @@ class GoogleSheetsService {
     try {
       const sheetName = process.env.DATA_SHEET;
 
-      const values = [[
-        data.date || '',
-        data.shift || '',
-        data.cs || '',
-        data.channel || '',
-        data.name || '',
-        data.cust || '',
-        data.order_number || '',
-        data.intention || '',
-        data.case || '',
-        data.product_name || '',
-        data.closing_status || '',
-        data.note || '',
-        data.chat_status || '',
-        data.chat_status2 || '',
-        data.follow_up || '',
-        data.survey || ''
-      ]];
+      const values = [
+        [
+          data.date || "",
+          data.shift || "",
+          data.cs || "",
+          data.channel || "",
+          data.name || "",
+          data.cust || "",
+          data.order_number || "",
+          data.intention || "",
+          data.case || "",
+          data.product_name || "",
+          data.closing_status || "",
+          data.note || "",
+          data.chat_status || "",
+          data.chat_status2 || "",
+          data.follow_up || "",
+          data.survey || "",
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!A:Q`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
@@ -519,7 +544,7 @@ class GoogleSheetsService {
 
       return response.data;
     } catch (error) {
-      console.error('Error adding data:', error);
+      console.error("Error adding data:", error);
       throw error;
     }
   }
@@ -528,29 +553,31 @@ class GoogleSheetsService {
     try {
       const sheetName = process.env.DATA_SHEET;
 
-      const values = [[
-        data.date || '',
-        data.shift || '',
-        data.cs || '',
-        data.channel || '',
-        data.name || '',
-        data.cust || '',
-        data.order_number || '',
-        data.intention || '',
-        data.case || '',
-        data.product_name || '',
-        data.closing_status || '',
-        data.note || '',
-        data.chat_status || '',
-        data.chat_status2 || '',
-        data.follow_up || '',
-        data.survey || ''
-      ]];
+      const values = [
+        [
+          data.date || "",
+          data.shift || "",
+          data.cs || "",
+          data.channel || "",
+          data.name || "",
+          data.cust || "",
+          data.order_number || "",
+          data.intention || "",
+          data.case || "",
+          data.product_name || "",
+          data.closing_status || "",
+          data.note || "",
+          data.chat_status || "",
+          data.chat_status2 || "",
+          data.follow_up || "",
+          data.survey || "",
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.spreadsheetId,
         range: `${sheetName}!A${rowIndex}:P${rowIndex}`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
@@ -559,7 +586,7 @@ class GoogleSheetsService {
 
       return response.data;
     } catch (error) {
-      console.error('Error updating data:', error);
+      console.error("Error updating data:", error);
       throw error;
     }
   }
@@ -567,15 +594,19 @@ class GoogleSheetsService {
   async deleteData(rowIndex) {
     try {
       const sheetName = process.env.DATA_SHEET;
-      
-      const result = await this.deleteRow(this.spreadsheetId, sheetName, rowIndex);
-      
+
+      const result = await this.deleteRow(
+        this.spreadsheetId,
+        sheetName,
+        rowIndex,
+      );
+
       // Clear cache after deleting data
       this.clearCache();
-      
+
       return result;
     } catch (error) {
-      console.error('Error deleting data:', error);
+      console.error("Error deleting data:", error);
       throw error;
     }
   }
@@ -583,9 +614,9 @@ class GoogleSheetsService {
   async getDataByRowIndex(rowIndex) {
     try {
       const allData = await this.getAllData();
-      return allData.find(item => item.rowIndex === rowIndex);
+      return allData.find((item) => item.rowIndex === rowIndex);
     } catch (error) {
-      console.error('Error fetching single data:', error);
+      console.error("Error fetching single data:", error);
       throw error;
     }
   }
@@ -595,7 +626,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.spreadsheetId,
-        range: 'Jadwal CS!A:J',
+        range: "Jadwal CS!A:J",
       });
 
       const rows = response.data.values;
@@ -607,14 +638,14 @@ class GoogleSheetsService {
       const data = rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
-          obj[header] = row[i] || '';
+          obj[header] = row[i] || "";
         });
         return obj;
       });
 
       return data;
     } catch (error) {
-      console.error('Error fetching schedule data:', error);
+      console.error("Error fetching schedule data:", error);
       throw error;
     }
   }
@@ -624,7 +655,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.csNilaiSpreadsheetId,
-        range: 'rekap_nilai!A:E',
+        range: "rekap_nilai!A:E",
       });
 
       const rows = response.data.values;
@@ -636,14 +667,14 @@ class GoogleSheetsService {
       const data = rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
-          obj[header] = row[i] || '';
+          obj[header] = row[i] || "";
         });
         return obj;
       });
 
       return data;
     } catch (error) {
-      console.error('Error fetching nilai data:', error);
+      console.error("Error fetching nilai data:", error);
       throw error;
     }
   }
@@ -653,7 +684,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.warrantySpreadsheetId,
-        range: 'form_warranty!A:N',
+        range: "form_warranty!A:N",
       });
 
       const rows = response.data.values;
@@ -666,10 +697,10 @@ class GoogleSheetsService {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
           // Convert channel to proper case if exists
-          if (header === 'channel') {
-            obj[header] = this.toProperCase(row[i] || '');
+          if (header === "channel") {
+            obj[header] = this.toProperCase(row[i] || "");
           } else {
-            obj[header] = row[i] || '';
+            obj[header] = row[i] || "";
           }
         });
         return obj;
@@ -677,7 +708,7 @@ class GoogleSheetsService {
 
       return data;
     } catch (error) {
-      console.error('Error fetching warranty data:', error);
+      console.error("Error fetching warranty data:", error);
       throw error;
     }
   }
@@ -686,7 +717,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.warrantySpreadsheetId,
-        range: 'check-activation!A:Q',
+        range: "check-activation!A:Q",
       });
 
       const rows = response.data.values;
@@ -698,14 +729,14 @@ class GoogleSheetsService {
       const data = rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
-          obj[header] = row[i] || '';
+          obj[header] = row[i] || "";
         });
         return obj;
       });
 
       return data;
     } catch (error) {
-      console.error('Error fetching check activation data:', error);
+      console.error("Error fetching check activation data:", error);
       throw error;
     }
   }
@@ -715,7 +746,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: 'master-stock!A:J',
+        range: "master-stock!A:K", // UPDATE: A-K untuk include image_url
       });
 
       const rows = response.data.values;
@@ -727,73 +758,91 @@ class GoogleSheetsService {
       const data = rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
-          obj[header] = row[i] || '';
+          obj[header] = row[i] || "";
         });
         return obj;
       });
 
       return data;
     } catch (error) {
-      console.error('Error fetching master stock data:', error);
+      console.error("Error fetching master stock data:", error);
       throw error;
     }
   }
 
   async addMasterStockData(data) {
     try {
-      const values = [[
-        data.SKU || '',
-        data.Product_name || '',
-        data.Category || '',
-        data.Grade || '',
-        data.HPP || '',
-        data.HPJ || ''
-      ]];
+      const values = [
+        [
+          data.SKU || "",
+          data.Product_name || "",
+          data.Category || "",
+          data.Grade || "",
+          data.HPP || "",
+          data.HPJ || "",
+          data.HPT || "", // Kolom G
+          data.Artikel || "", // Kolom H
+          "", // Kolom I (kosong)
+          "", // Kolom J (kosong)
+          data.image_url || "", // Kolom K
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
-        range: 'master-stock!A:J',
-        valueInputOption: 'USER_ENTERED',
+        range: "master-stock!A:K",
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error adding master stock data:', error);
+      console.error("Error adding master stock data:", error);
       throw error;
     }
   }
 
   async updateMasterStockData(rowIndex, data) {
     try {
-      const values = [[
-        data.SKU || '',
-        data.Product_name || '',
-        data.Category || '',
-        data.Grade || '',
-        data.HPP || '',
-        data.HPJ || ''
-      ]];
+      const values = [
+        [
+          data.SKU || "",
+          data.Product_name || "",
+          data.Category || "",
+          data.Grade || "",
+          data.HPP || "",
+          data.HPJ || "",
+          data.HPT || "", // Kolom G
+          data.Artikel || "", // Kolom H
+          "", // Kolom I
+          "", // Kolom J
+          data.image_url || "", // Kolom K
+        ],
+      ];
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `master-stock!A${rowIndex}:J${rowIndex}`,
-        valueInputOption: 'USER_ENTERED',
+        range: `master-stock!A${rowIndex}:K${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return response.data;
     } catch (error) {
-      console.error('Error updating master stock data:', error);
+      console.error("Error updating master stock data:", error);
       throw error;
     }
   }
 
   async deleteMasterStockData(rowIndex) {
     try {
-      return await this.deleteRow(this.usersSpreadsheetId, 'master-stock', rowIndex);
+      return await this.deleteRow(
+        this.usersSpreadsheetId,
+        "master-stock",
+        rowIndex,
+      );
     } catch (error) {
-      console.error('Error deleting master stock data:', error);
+      console.error("Error deleting master stock data:", error);
       throw error;
     }
   }
@@ -803,7 +852,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: 'stock-updates!A:B',
+        range: "stock-updates!A:B",
       });
 
       const rows = response.data.values;
@@ -812,7 +861,7 @@ class GoogleSheetsService {
       }
 
       const lastUpdate = {};
-      rows.slice(1).forEach(row => {
+      rows.slice(1).forEach((row) => {
         if (row[0]) {
           lastUpdate[row[0]] = row[1] || null;
         }
@@ -820,7 +869,7 @@ class GoogleSheetsService {
 
       return lastUpdate;
     } catch (error) {
-      console.error('Error fetching stock last update:', error);
+      console.error("Error fetching stock last update:", error);
       return { shopify: null, javelin: null, threshold: null };
     }
   }
@@ -830,7 +879,7 @@ class GoogleSheetsService {
       // Find row for this type
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: 'stock-updates!A:A',
+        range: "stock-updates!A:A",
       });
 
       const rows = response.data.values || [];
@@ -847,27 +896,27 @@ class GoogleSheetsService {
       if (rowIndex === -1) {
         await this.sheets.spreadsheets.values.append({
           spreadsheetId: this.usersSpreadsheetId,
-          range: 'stock-updates!A:B',
-          valueInputOption: 'USER_ENTERED',
+          range: "stock-updates!A:B",
+          valueInputOption: "USER_ENTERED",
           resource: {
-            values: [[type, new Date().toISOString()]]
-          }
+            values: [[type, new Date().toISOString()]],
+          },
         });
       } else {
         // Update existing row
         await this.sheets.spreadsheets.values.update({
           spreadsheetId: this.usersSpreadsheetId,
           range: `stock-updates!B${rowIndex}`,
-          valueInputOption: 'USER_ENTERED',
+          valueInputOption: "USER_ENTERED",
           resource: {
-            values: [[new Date().toISOString()]]
-          }
+            values: [[new Date().toISOString()]],
+          },
         });
       }
 
       return true;
     } catch (error) {
-      console.error('Error updating stock last update:', error);
+      console.error("Error updating stock last update:", error);
       throw error;
     }
   }
@@ -877,7 +926,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: 'stock!A:J',
+        range: "stock!A:J",
       });
 
       const rows = response.data.values;
@@ -889,22 +938,24 @@ class GoogleSheetsService {
       const data = rows.slice(1).map((row, index) => {
         const obj = { rowIndex: index + 2 };
         headers.forEach((header, i) => {
-          obj[header] = row[i] || '';
+          obj[header] = row[i] || "";
         });
         return obj;
       });
 
       // Sort: Grade A-Z, then PCA descending
       return data.sort((a, b) => {
-        const gradeCompare = String(a.Grade || '').localeCompare(String(b.Grade || ''));
+        const gradeCompare = String(a.Grade || "").localeCompare(
+          String(b.Grade || ""),
+        );
         if (gradeCompare !== 0) return gradeCompare;
-        
+
         const pcaA = parseFloat(a.PCA) || 0;
         const pcaB = parseFloat(b.PCA) || 0;
         return pcaB - pcaA;
       });
     } catch (error) {
-      console.error('Error fetching stock data:', error);
+      console.error("Error fetching stock data:", error);
       throw error;
     }
   }
@@ -918,26 +969,26 @@ class GoogleSheetsService {
       });
 
       // Prepare values
-      const values = data.map(row => {
+      const values = data.map((row) => {
         // Get all keys from first row to maintain column order
         const keys = Object.keys(data[0]);
-        return keys.map(key => row[key] || '');
+        return keys.map((key) => row[key] || "");
       });
 
       // Insert new data
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
         range: `${sheetName}!A2`,
-        valueInputOption: 'USER_ENTERED',
+        valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
       return {
         rowsImported: values.length,
-        response: response.data
+        response: response.data,
       };
     } catch (error) {
-      console.error('Error importing to sheet:', error);
+      console.error("Error importing to sheet:", error);
       throw error;
     }
   }
@@ -950,7 +1001,7 @@ class GoogleSheetsService {
       });
 
       const sheet = sheetMetadata.data.sheets.find(
-        s => s.properties.title === sheetName
+        (s) => s.properties.title === sheetName,
       );
 
       if (!sheet) {
@@ -967,7 +1018,7 @@ class GoogleSheetsService {
               deleteDimension: {
                 range: {
                   sheetId: sheetId,
-                  dimension: 'ROWS',
+                  dimension: "ROWS",
                   startIndex: rowIndex - 1,
                   endIndex: rowIndex,
                 },
@@ -976,13 +1027,11 @@ class GoogleSheetsService {
           ],
         },
       });
-
       return response.data;
     } catch (error) {
-      console.error('Error deleting row:', error);
+      console.error("Error deleting row:", error);
       throw error;
     }
   }
 }
-
 export default new GoogleSheetsService();
