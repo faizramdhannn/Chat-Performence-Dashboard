@@ -162,7 +162,9 @@ export default function RegistrationsPage() {
       chat_creation: true,
       analytics: true,
       warranty: true,
+      bundling: true,
       stock: true,
+      notes: false,
       registrations: false, // Usually don't give this to new users
       user_management: false, // Usually don't give this to new users
       settings: false, // Usually don't give this to new users
@@ -175,7 +177,9 @@ export default function RegistrationsPage() {
       chat_creation: false,
       analytics: false,
       warranty: false,
+      bundling: false,
       stock: false,
+      notes: false,
       registrations: false,
       user_management: false,
       settings: false,
@@ -367,6 +371,10 @@ export default function RegistrationsPage() {
             <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold whitespace-nowrap">Warranty</span>
             <p className="text-sm text-gray-600">Access warranty management features</p>
           </div>
+                    <div className="flex items-start gap-3">
+            <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold whitespace-nowrap">Bundling</span>
+            <p className="text-sm text-gray-600">Bundling Management</p>
+          </div>
           <div className="flex items-start gap-3">
             <span className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-semibold whitespace-nowrap">Stock</span>
             <p className="text-sm text-gray-600">Access stock management features</p>
@@ -375,6 +383,10 @@ export default function RegistrationsPage() {
             <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold whitespace-nowrap">Registrations</span>
             <p className="text-sm text-gray-600">⚠️ Admin only - Approve/reject new user registrations</p>
           </div>
+          <div className="flex items-start gap-3">
+  <span className="px-3 py-1 bg-teal-100 text-teal-800 rounded-full text-xs font-semibold whitespace-nowrap">Notes</span>
+  <p className="text-sm text-gray-600">View and manage notes/links</p>
+</div>
           <div className="flex items-start gap-3">
             <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-semibold whitespace-nowrap">User Management</span>
             <p className="text-sm text-gray-600">⚠️ Admin only - Create, edit, delete users and manage permissions</p>
