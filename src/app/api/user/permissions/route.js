@@ -36,6 +36,7 @@ export async function GET(request) {
     console.log('  - warranty:', user.warranty, '→', isTrue(user.warranty));
     console.log('  - bundling:', user.bundling, '→', isTrue(user.bundling));
     console.log('  - stock:', user.stock, '→', isTrue(user.stock));
+    console.log('  - notes:', user.notes, '→', isTrue(user.notes));
     console.log('  - registrations:', user.registrations, '→', isTrue(user.registrations));
     console.log('  - user_management:', user.user_management, '→', isTrue(user.user_management));
     console.log('  - settings:', user.settings, '→', isTrue(user.settings));

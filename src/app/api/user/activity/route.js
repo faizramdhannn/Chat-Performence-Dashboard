@@ -49,6 +49,7 @@ export async function GET(request) {
           warranty: user.warranty === 'TRUE',
           bundling: user.bundling === 'TRUE',
           stock: user.stock === 'TRUE',
+          notes: user.notes === 'TRUE',
           registrations: user.registrations === 'TRUE',
           user_management: user.user_management === 'TRUE',
           settings: user.settings === 'TRUE',

@@ -69,12 +69,12 @@ class GoogleSheetsService {
     return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
-  // ============ USER MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
+  // ============ USER MANAGEMENT (FIXED - ID-BASED) ============
   async getAllUsers() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:O`,
+        range: `${process.env.USERS_SHEET}!A:Q`,
       });
 
       const rows = response.data.values;
@@ -108,6 +108,8 @@ class GoogleSheetsService {
 
   async createUser(userData) {
     try {
+      console.log(`➕ Creating new user: ${userData.username}`);
+
       const hashedPassword = await bcrypt.hash(userData.password, 10);
 
       const values = [
@@ -123,40 +125,56 @@ class GoogleSheetsService {
           userData.warranty || "FALSE",
           userData.bundling || "FALSE",
           userData.stock || "FALSE",
+          userData.notes || "FALSE", // NEW
           userData.registrations || "FALSE",
           userData.user_management || "FALSE",
           userData.settings || "FALSE",
-          "", // N: created_at
-          "", // O: last_activity
+          new Date().toISOString(), // P: created_at
+          "", // Q: last_activity
         ],
       ];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:O`,
+        range: `${process.env.USERS_SHEET}!A:Q`,
         valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
+      console.log(`✅ Successfully created user: ${userData.username}`);
       return response.data;
     } catch (error) {
-      console.error("Error creating user:", error);
+      console.error("❌ Error creating user:", error);
       throw error;
     }
   }
 
-  async updateUser(rowIndex, userData) {
+  // CRITICAL FIX: Now uses userId instead of rowIndex
+  async updateUser(userId, userData) {
     try {
+      // CRITICAL: Always fetch fresh data to get correct rowIndex
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.id === userId);
+
+      if (!user) {
+        throw new Error(`User with id ${userId} not found`);
+      }
+
+      console.log(`📝 Updating user ${userData.username} (ID: ${userId}) at row ${user.rowIndex}`);
+
       let passwordValue = userData.password;
 
-      // Only hash if password is being changed
+      // Only hash if password is being changed and not already hashed
       if (userData.password && !userData.password.startsWith("$2")) {
         passwordValue = await bcrypt.hash(userData.password, 10);
+      } else if (!userData.password) {
+        // If no password provided, keep the old one
+        passwordValue = user.password;
       }
 
       const values = [
         [
-          userData.id,
+          userId, // Use the userId parameter to ensure consistency
           userData.username,
           passwordValue,
           userData.role || "user", // Legacy field
@@ -167,55 +185,80 @@ class GoogleSheetsService {
           userData.warranty || "FALSE",
           userData.bundling || "FALSE",
           userData.stock || "FALSE",
+          userData.notes || "FALSE",
           userData.registrations || "FALSE",
           userData.user_management || "FALSE",
           userData.settings || "FALSE",
-          userData.created_at || "", // N: created_at
-          userData.last_activity || "", // O: last_activity
+          userData.created_at || user.created_at || "", // P: created_at
+          userData.last_activity || "", // Q: last_activity
         ],
       ];
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A${rowIndex}:O${rowIndex}`,
+        range: `${process.env.USERS_SHEET}!A${user.rowIndex}:Q${user.rowIndex}`,
         valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
+      console.log(`✅ Successfully updated user ${userData.username}`);
       return response.data;
     } catch (error) {
-      console.error("Error updating user:", error);
+      console.error("❌ Error updating user:", error);
       throw error;
     }
   }
 
-  async deleteUser(rowIndex) {
+  // CRITICAL FIX: Now uses userId instead of rowIndex
+  async deleteUser(userId) {
     try {
-      return await this.deleteRow(
+      // CRITICAL: Always fetch fresh data to get correct rowIndex
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.id === userId);
+
+      if (!user) {
+        throw new Error(`User with id ${userId} not found`);
+      }
+
+      // SAFETY CHECK: Don't delete the last super admin
+      const superAdmins = users.filter(u => u.role === 'super_admin');
+      if (user.role === 'super_admin' && superAdmins.length <= 1) {
+        throw new Error('Cannot delete the last super admin');
+      }
+
+      console.log(`🗑️  Attempting to delete user: ${user.username} (ID: ${userId}) at row ${user.rowIndex}`);
+
+      const result = await this.deleteRow(
         this.usersSpreadsheetId,
         process.env.USERS_SHEET,
-        rowIndex,
+        user.rowIndex,
       );
+
+      console.log(`✅ Successfully deleted user ${user.username}`);
+      return result;
     } catch (error) {
-      console.error("Error deleting user:", error);
+      console.error("❌ Error deleting user:", error);
       throw error;
     }
   }
 
-  // ============ USER ACTIVITY TRACKING ============
+  // ============ USER ACTIVITY TRACKING (IMPROVED ERROR HANDLING) ============
   async updateUserLastActivity(username, timestamp) {
     try {
       const users = await this.getAllUsers();
       const user = users.find((u) => u.username === username);
 
       if (!user) {
-        throw new Error("User not found");
+        console.warn(`⚠️  User ${username} not found for activity update`);
+        return null;
       }
 
-      // Update only column O (last_activity)
+      console.log(`📍 Updating last activity for ${username} at row ${user.rowIndex}`);
+
+      // Update only column Q (last_activity)
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!O${user.rowIndex}`,
+        range: `${process.env.USERS_SHEET}!Q${user.rowIndex}`,
         valueInputOption: "USER_ENTERED",
         resource: {
           values: [[timestamp]],
@@ -224,12 +267,13 @@ class GoogleSheetsService {
 
       return response.data;
     } catch (error) {
-      console.error("Error updating last activity:", error);
-      throw error;
+      console.error("❌ Error updating last activity:", error);
+      // Don't throw - activity update failure shouldn't break the app
+      return null;
     }
   }
 
-  // ============ REGISTRATION MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
+  // ============ REGISTRATION MANAGEMENT ============
   async getPendingRegistrations() {
     try {
       const sheetName = process.env.REGISTRATIONS_SHEET || "registrations";
@@ -330,6 +374,8 @@ class GoogleSheetsService {
 
   async createUserFromRegistration(registration, role, permissions) {
     try {
+      console.log(`➕ Creating user from registration: ${registration.username}`);
+
       const values = [
         [
           registration.id,
@@ -343,24 +389,26 @@ class GoogleSheetsService {
           permissions.warranty || "FALSE",
           permissions.bundling || "FALSE",
           permissions.stock || "FALSE",
+          permissions.notes || "FALSE",
           permissions.registrations || "FALSE",
           permissions.user_management || "FALSE",
           permissions.settings || "FALSE",
-          "", // N: created_at
-          "", // O: last_activity
+          new Date().toISOString(), // P: created_at
+          "", // Q: last_activity
         ],
       ];
 
       const response = await this.sheets.spreadsheets.values.append({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `${process.env.USERS_SHEET}!A:O`,
+        range: `${process.env.USERS_SHEET}!A:Q`,
         valueInputOption: "USER_ENTERED",
         resource: { values },
       });
 
+      console.log(`✅ Successfully created user from registration: ${registration.username}`);
       return response.data;
     } catch (error) {
-      console.error("Error creating user from registration:", error);
+      console.error("❌ Error creating user from registration:", error);
       throw error;
     }
   }
@@ -387,7 +435,7 @@ class GoogleSheetsService {
     }
   }
 
-  // ============ NOTES MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
+  // ============ NOTES MANAGEMENT (FIXED - ID-BASED) ============
   async getAllNotes() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
@@ -416,6 +464,8 @@ class GoogleSheetsService {
 
   async addNote(data) {
     try {
+      console.log(`➕ Creating new note: ${data.title}`);
+
       const values = [
         [
           data.id || Date.now().toString(),
@@ -432,18 +482,30 @@ class GoogleSheetsService {
         resource: { values },
       });
 
+      console.log(`✅ Successfully created note: ${data.title}`);
       return response.data;
     } catch (error) {
-      console.error('Error adding note:', error);
+      console.error('❌ Error adding note:', error);
       throw error;
     }
   }
 
-  async updateNote(rowIndex, data) {
+  // CRITICAL FIX: Now uses noteId instead of rowIndex
+  async updateNote(noteId, data) {
     try {
+      // CRITICAL: Always fetch fresh data to get correct rowIndex
+      const notes = await this.getAllNotes();
+      const note = notes.find(n => n.id === noteId);
+
+      if (!note) {
+        throw new Error(`Note with id ${noteId} not found`);
+      }
+
+      console.log(`📝 Updating note: ${data.title} (ID: ${noteId}) at row ${note.rowIndex}`);
+
       const values = [
         [
-          data.id,
+          noteId,
           data.title || '',
           data.description || '',
           data.url_link || '',
@@ -452,27 +514,43 @@ class GoogleSheetsService {
 
       const response = await this.sheets.spreadsheets.values.update({
         spreadsheetId: this.usersSpreadsheetId,
-        range: `notes!A${rowIndex}:D${rowIndex}`,
+        range: `notes!A${note.rowIndex}:D${note.rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values },
       });
 
+      console.log(`✅ Successfully updated note: ${data.title}`);
       return response.data;
     } catch (error) {
-      console.error('Error updating note:', error);
+      console.error('❌ Error updating note:', error);
       throw error;
     }
   }
 
-  async deleteNote(rowIndex) {
+  // CRITICAL FIX: Now uses noteId instead of rowIndex
+  async deleteNote(noteId) {
     try {
-      return await this.deleteRow(this.usersSpreadsheetId, 'notes', rowIndex);
+      // CRITICAL: Always fetch fresh data to get correct rowIndex
+      const notes = await this.getAllNotes();
+      const note = notes.find(n => n.id === noteId);
+
+      if (!note) {
+        throw new Error(`Note with id ${noteId} not found`);
+      }
+
+      console.log(`🗑️  Deleting note: ${note.title} (ID: ${noteId}) at row ${note.rowIndex}`);
+
+      const result = await this.deleteRow(this.usersSpreadsheetId, 'notes', note.rowIndex);
+
+      console.log(`✅ Successfully deleted note: ${note.title}`);
+      return result;
     } catch (error) {
-      console.error('Error deleting note:', error);
+      console.error('❌ Error deleting note:', error);
       throw error;
     }
   }
-  // ============ SETTINGS MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
+
+  // ============ SETTINGS MANAGEMENT ============
   async getSettings() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
@@ -520,7 +598,7 @@ class GoogleSheetsService {
     }
   }
 
-  // ============ MASTER DATA (DROPDOWNS) - TETAP DI spreadsheetId ============
+  // ============ MASTER DATA (DROPDOWNS) ============
   async getMasterData() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
@@ -550,7 +628,7 @@ class GoogleSheetsService {
     }
   }
 
-  // ============ CHAT PERFORMANCE DATA - TETAP DI spreadsheetId ============
+  // ============ CHAT PERFORMANCE DATA ============
   async getAllData() {
     try {
       // Check cache first
@@ -831,7 +909,7 @@ class GoogleSheetsService {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: "master-stock!A:K", // UPDATE: A-K untuk include image_url
+        range: "master-stock!A:K",
       });
 
       const rows = response.data.values;
@@ -865,11 +943,11 @@ class GoogleSheetsService {
           data.Grade || "",
           data.HPP || "",
           data.HPJ || "",
-          data.HPT || "", // Kolom G
-          data.Artikel || "", // Kolom H
-          "", // Kolom I (kosong)
-          "", // Kolom J (kosong)
-          data.image_url || "", // Kolom K
+          data.HPT || "",
+          data.Artikel || "",
+          "",
+          "",
+          data.image_url || "",
         ],
       ];
 
@@ -897,11 +975,11 @@ class GoogleSheetsService {
           data.Grade || "",
           data.HPP || "",
           data.HPJ || "",
-          data.HPT || "", // Kolom G
-          data.Artikel || "", // Kolom H
-          "", // Kolom I
-          "", // Kolom J
-          data.image_url || "", // Kolom K
+          data.HPT || "",
+          data.Artikel || "",
+          "",
+          "",
+          data.image_url || "",
         ],
       ];
 
@@ -1045,8 +1123,17 @@ class GoogleSheetsService {
     }
   }
 
+  // CRITICAL FIX: Protected sheets validation
   async importToSheet(sheetName, data) {
     try {
+      // CRITICAL: Protect critical sheets from accidental import
+      const protectedSheets = ['users', process.env.USERS_SHEET, 'registrations'];
+      if (protectedSheets.includes(sheetName)) {
+        throw new Error(`❌ Cannot import to protected sheet: ${sheetName}`);
+      }
+
+      console.log(`📥 Importing ${data.length} rows to sheet "${sheetName}"`);
+
       // Clear existing data (except header)
       await this.sheets.spreadsheets.values.clear({
         spreadsheetId: this.usersSpreadsheetId,
@@ -1068,19 +1155,28 @@ class GoogleSheetsService {
         resource: { values },
       });
 
+      console.log(`✅ Successfully imported ${values.length} rows to "${sheetName}"`);
+
       return {
         rowsImported: values.length,
         response: response.data,
       };
     } catch (error) {
-      console.error("Error importing to sheet:", error);
+      console.error("❌ Error importing to sheet:", error);
       throw error;
     }
   }
 
-  // ============ HELPER METHODS ============
+  // ============ HELPER METHODS (CRITICAL VALIDATION) ============
   async deleteRow(spreadsheetId, sheetName, rowIndex) {
     try {
+      // CRITICAL FIX: Validate rowIndex before deletion
+      if (!rowIndex || rowIndex < 2) {
+        throw new Error(`❌ Invalid rowIndex: ${rowIndex}. Must be >= 2 (cannot delete header)`);
+      }
+
+      console.log(`🗑️  Deleting row ${rowIndex} from sheet "${sheetName}"`);
+
       const sheetMetadata = await this.sheets.spreadsheets.get({
         spreadsheetId: spreadsheetId,
       });
@@ -1094,6 +1190,8 @@ class GoogleSheetsService {
       }
 
       const sheetId = sheet.properties.sheetId;
+
+      console.log(`🗑️  Confirmed: deleting from sheetId ${sheetId}, row ${rowIndex}`);
 
       const response = await this.sheets.spreadsheets.batchUpdate({
         spreadsheetId: spreadsheetId,
@@ -1112,11 +1210,15 @@ class GoogleSheetsService {
           ],
         },
       });
+
+      console.log(`✅ Successfully deleted row ${rowIndex} from "${sheetName}"`);
+
       return response.data;
     } catch (error) {
-      console.error("Error deleting row:", error);
+      console.error("❌ Error deleting row:", error);
       throw error;
     }
   }
 }
+
 export default new GoogleSheetsService();
