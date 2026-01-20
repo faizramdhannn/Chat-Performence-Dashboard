@@ -55,6 +55,7 @@ export async function PUT(request, { params }) {
       analytics: body.analytics !== undefined ? (body.analytics ? 'TRUE' : 'FALSE') : user.analytics,
       warranty: body.warranty !== undefined ? (body.warranty ? 'TRUE' : 'FALSE') : user.warranty,
       stock: body.stock !== undefined ? (body.stock ? 'TRUE' : 'FALSE') : user.stock,
+      notes: body.notes !== undefined ? (body.notes ? 'TRUE' : 'FALSE') : user.notes,
       registrations: body.registrations !== undefined ? (body.registrations ? 'TRUE' : 'FALSE') : user.registrations,
       user_management: body.user_management !== undefined ? (body.user_management ? 'TRUE' : 'FALSE') : user.user_management,
       settings: body.settings !== undefined ? (body.settings ? 'TRUE' : 'FALSE') : user.settings,

@@ -96,6 +96,11 @@ export default function Sidebar() {
         permission: permissions.stock,
       },
       {
+        href: "/dashboard/notes",
+        label: "Notes",
+        permission: permissions.notes,
+      },
+      {
         href: "/dashboard/registrations",
         label: "Registration Requests",
         permission: permissions.registrations,

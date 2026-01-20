@@ -387,6 +387,91 @@ class GoogleSheetsService {
     }
   }
 
+  // ============ NOTES MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
+  async getAllNotes() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: 'notes!A:D',
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      return rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || '';
+        });
+        return obj;
+      });
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+      throw error;
+    }
+  }
+
+  async addNote(data) {
+    try {
+      const values = [
+        [
+          data.id || Date.now().toString(),
+          data.title || '',
+          data.description || '',
+          data.url_link || '',
+        ],
+      ];
+
+      const response = await this.sheets.spreadsheets.values.append({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: 'notes!A:D',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error adding note:', error);
+      throw error;
+    }
+  }
+
+  async updateNote(rowIndex, data) {
+    try {
+      const values = [
+        [
+          data.id,
+          data.title || '',
+          data.description || '',
+          data.url_link || '',
+        ],
+      ];
+
+      const response = await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: `notes!A${rowIndex}:D${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error updating note:', error);
+      throw error;
+    }
+  }
+
+  async deleteNote(rowIndex) {
+    try {
+      return await this.deleteRow(this.usersSpreadsheetId, 'notes', rowIndex);
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      throw error;
+    }
+  }
   // ============ SETTINGS MANAGEMENT (GUNAKAN usersSpreadsheetId) ============
   async getSettings() {
     try {

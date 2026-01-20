@@ -55,6 +55,7 @@ export async function POST(request) {
       chat_creation: body.chat_creation ? 'TRUE' : 'FALSE',
       analytics: body.analytics ? 'TRUE' : 'FALSE',
       warranty: body.warranty ? 'TRUE' : 'FALSE',
+      notes: body.notes ? 'TRUE' : 'FALSE', 
       stock: body.stock ? 'TRUE' : 'FALSE',
       registrations: body.registrations ? 'TRUE' : 'FALSE',
       user_management: body.user_management ? 'TRUE' : 'FALSE',

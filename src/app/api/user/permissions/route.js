@@ -50,6 +50,7 @@ export async function GET(request) {
       warranty: isTrue(user.warranty),
       bundling: isTrue(user.bundling),             // ← bundling dari sheets → bundling di frontend
       stock: isTrue(user.stock),
+      notes: isTrue(user.notes),
       registrations: isTrue(user.registrations),
       userManagement: isTrue(user.user_management), // ← user_management dari sheets → userManagement di frontend
       settings: isTrue(user.settings),
