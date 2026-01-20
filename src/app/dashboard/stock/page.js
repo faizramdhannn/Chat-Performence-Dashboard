@@ -1152,7 +1152,7 @@ export default function StockPage() {
                     {/* Right - SKU, Product, Price */}
                     <div className="text-center">
                       <div className="text-xs font-bold text-gray-800">
-                        SKU: {selectedItemForBarcode.SKU}
+                        {selectedItemForBarcode.SKU}
                       </div>
                       <div
                         className="text-xs text-gray-700"
@@ -1172,7 +1172,7 @@ export default function StockPage() {
                   </div>
 
                   {/* Bottom Section - QR Code (KOTAK PERSEGI seperti QRIS) */}
-                  <div className="flex justify-center items-end pb-2">
+                  <div className="flex justify-left items-end pb-2">
                     <QRCodeCanvas
                       value={selectedItemForBarcode.SKU}
                       size={100}
