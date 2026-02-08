@@ -1084,18 +1084,27 @@ class GoogleSheetsService {
     }
   }
 
-  // ============ STOCK DATA ============
+  // ============ STOCK DATA (WITH IMAGE URL FROM MASTER STOCK) ============
   async getStockData() {
     try {
-      const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId: this.usersSpreadsheetId,
-        range: "stock!A:J",
-      });
+      const [stockResponse, masterStockData] = await Promise.all([
+        this.sheets.spreadsheets.values.get({
+          spreadsheetId: this.usersSpreadsheetId,
+          range: "stock!A:J",
+        }),
+        this.getMasterStockData(),
+      ]);
 
-      const rows = response.data.values;
+      const rows = stockResponse.data.values;
       if (!rows || rows.length === 0) {
         return [];
       }
+
+      // Create image URL lookup map from master stock
+      const imageMap = {};
+      masterStockData.forEach((item) => {
+        imageMap[item.SKU] = item.image_url || "";
+      });
 
       const headers = rows[0];
       const data = rows.slice(1).map((row, index) => {
@@ -1103,6 +1112,10 @@ class GoogleSheetsService {
         headers.forEach((header, i) => {
           obj[header] = row[i] || "";
         });
+        
+        // Add image_url from master stock
+        obj.image_url = imageMap[obj.SKU] || "";
+        
         return obj;
       });
 
@@ -1123,11 +1136,145 @@ class GoogleSheetsService {
     }
   }
 
-  // CRITICAL FIX: Protected sheets validation
+  // ============ STOCK YESTERDAY DATA (NEW) ============
+  async getStockYesterdayData() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: "stock_yesterday!A:J",
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || "";
+        });
+        return obj;
+      });
+
+      return data;
+    } catch (error) {
+      console.error("Error fetching stock yesterday data:", error);
+      throw error;
+    }
+  }
+
+  async moveStockToYesterday() {
+    try {
+      console.log("📦 Moving stock data to stock_yesterday...");
+
+      // Get current stock data
+      const stockData = await this.getStockData();
+
+      // Clear stock_yesterday (except header)
+      await this.sheets.spreadsheets.values.clear({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: "stock_yesterday!A2:ZZ",
+      });
+
+      // Prepare values
+      const values = stockData.map((row) => [
+        row.SKU || "",
+        row.Product_name || "",
+        row.Category || "",
+        row.Grade || "",
+        row.PCA || "",
+        row.Shopify || "",
+        row.Threshold || "",
+        row.HPP || "",
+        row.HPT || "",
+        row.HPJ || "",
+      ]);
+
+      // Insert into stock_yesterday
+      if (values.length > 0) {
+        await this.sheets.spreadsheets.values.append({
+          spreadsheetId: this.usersSpreadsheetId,
+          range: "stock_yesterday!A2",
+          valueInputOption: "USER_ENTERED",
+          resource: { values },
+        });
+      }
+
+      console.log(`✅ Moved ${values.length} rows to stock_yesterday`);
+
+      return {
+        success: true,
+        rowsMoved: values.length,
+      };
+    } catch (error) {
+      console.error("❌ Error moving stock to yesterday:", error);
+      throw error;
+    }
+  }
+
+  // ============ STOCK INFO (COMPARISON) (NEW) ============
+  async getStockInfoData() {
+    try {
+      const [stockData, stockYesterdayData, masterStockData] = await Promise.all([
+        this.getStockData(),
+        this.getStockYesterdayData(),
+        this.getMasterStockData(),
+      ]);
+
+      // Create a map for quick lookup
+      const yesterdayMap = {};
+      stockYesterdayData.forEach((item) => {
+        yesterdayMap[item.SKU] = parseFloat(item.PCA) || 0;
+      });
+
+      const masterStockMap = {};
+      masterStockData.forEach((item) => {
+        masterStockMap[item.SKU] = item.image_url || "";
+      });
+
+      // Build info data
+      const infoData = stockData.map((item) => {
+        const pcaToday = parseFloat(item.PCA) || 0;
+        const pcaYesterday = yesterdayMap[item.SKU] || 0;
+        const difference = pcaToday - pcaYesterday;
+        const imageUrl = masterStockMap[item.SKU] || "";
+
+        let label = "";
+        
+        // Determine label
+        if (pcaToday === 0) {
+          label = "OOS";
+        } else if (pcaToday < 3 && pcaYesterday < 3) {
+          label = "LOW STOCK";
+        } else if (difference >= 50) {
+          label = "RESTOCK";
+        }
+
+        return {
+          SKU: item.SKU,
+          Item_Name: item.Product_name,
+          PCA: pcaToday,
+          PCA_Yesterday: pcaYesterday,
+          Difference: difference,
+          Label: label,
+          image_url: imageUrl,
+        };
+      });
+
+      return infoData;
+    } catch (error) {
+      console.error("Error fetching stock info data:", error);
+      throw error;
+    }
+  }
+
+  // ============ STOCK IMPORT (CRITICAL FIX: Protected sheets validation) ============
   async importToSheet(sheetName, data) {
     try {
       // CRITICAL: Protect critical sheets from accidental import
-      const protectedSheets = ['users', process.env.USERS_SHEET, 'registrations'];
+      const protectedSheets = ['users', process.env.USERS_SHEET, 'registrations', 'notes', 'stock', 'stock_yesterday', 'master-stock'];
       if (protectedSheets.includes(sheetName)) {
         throw new Error(`❌ Cannot import to protected sheet: ${sheetName}`);
       }

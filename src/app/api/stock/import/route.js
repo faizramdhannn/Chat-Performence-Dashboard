@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import * as XLSX from 'xlsx';
+import { authOptions } from '@/lib/auth';
 import googleSheets from '@/lib/googleSheets';
-
-// Pastikan pakai Node.js runtime
-export const runtime = 'nodejs';
+import * as XLSX from 'xlsx';
 
 export async function POST(request) {
   const session = await getServerSession(authOptions);
@@ -30,12 +27,12 @@ export async function POST(request) {
     const bytes = await file.arrayBuffer();
     let workbook;
 
-    // CSV
+    // Handle CSV files
     if (file.name.toLowerCase().endsWith('.csv')) {
       const csvText = new TextDecoder('utf-8').decode(bytes);
       workbook = XLSX.read(csvText, { type: 'string' });
     }
-    // XLS / XLSX
+    // Handle XLS / XLSX files
     else {
       const data = new Uint8Array(bytes);
       workbook = XLSX.read(data, { type: 'array' });
@@ -43,7 +40,7 @@ export async function POST(request) {
 
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) {
-      return NextResponse.json({ error: 'No sheet found' }, { status: 400 });
+      return NextResponse.json({ error: 'No sheet found in file' }, { status: 400 });
     }
 
     const worksheet = workbook.Sheets[sheetName];
@@ -56,18 +53,66 @@ export async function POST(request) {
       return NextResponse.json({ error: 'File is empty' }, { status: 400 });
     }
 
+    // Import data to the appropriate sheet
+    console.log(`📥 Importing ${jsonData.length} rows to ${type}...`);
     const result = await googleSheets.importToSheet(type, jsonData);
+    
+    // Update last update timestamp
     await googleSheets.updateStockLastUpdate(type);
+
+    // Check if all three imports are done recently (within 5 minutes)
+    const lastUpdate = await googleSheets.getStockLastUpdate();
+    const now = Date.now();
+    const fiveMinutesAgo = now - (5 * 60 * 1000);
+
+    const allImportsDone = ['shopify', 'javelin', 'threshold'].every(t => {
+      const updateTime = lastUpdate[t] ? new Date(lastUpdate[t]).getTime() : 0;
+      return updateTime > fiveMinutesAgo;
+    });
+
+    // If all imports done within the time window, move stock to yesterday
+    if (allImportsDone) {
+      console.log('✅ All imports done within 5 minutes, moving stock to yesterday...');
+      try {
+        await googleSheets.moveStockToYesterday();
+        console.log('✅ Stock data successfully moved to stock_yesterday');
+      } catch (moveError) {
+        console.error('❌ Error moving stock to yesterday:', moveError);
+        // Don't fail the entire import if this fails
+      }
+    }
 
     return NextResponse.json({
       success: true,
       rowsImported: result.rowsImported,
       message: `Successfully imported ${result.rowsImported} rows to ${type}`,
+      allImportsDone,
+      autoMovedToYesterday: allImportsDone,
     });
   } catch (error) {
     console.error('Error importing data:', error);
     return NextResponse.json(
       { error: 'Failed to import data', detail: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// GET endpoint to check last update status
+export async function GET(request) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const lastUpdate = await googleSheets.getStockLastUpdate();
+    return NextResponse.json({ lastUpdate });
+  } catch (error) {
+    console.error('Error fetching last update:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch last update' },
       { status: 500 }
     );
   }

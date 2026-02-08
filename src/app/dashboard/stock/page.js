@@ -12,12 +12,13 @@ export default function StockPage() {
   const [permissions, setPermissions] = useState({});
   const barcodeRef = useRef(null);
 
-  // View selector: 'stock' atau 'master'
+  // View selector: 'stock', 'master', atau 'info'
   const [selectedView, setSelectedView] = useState("stock");
 
   // Data states
   const [stockData, setStockData] = useState([]);
   const [masterStockData, setMasterStockData] = useState([]);
+  const [infoData, setInfoData] = useState([]);
 
   const [categories, setCategories] = useState([]);
   const [grades, setGrades] = useState([]);
@@ -66,6 +67,9 @@ export default function StockPage() {
     search: "",
   });
 
+  // Info view filter
+  const [labelFilter, setLabelFilter] = useState("all");
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -77,8 +81,10 @@ export default function StockPage() {
   useEffect(() => {
     if (selectedView === "stock") {
       fetchStockData();
-    } else {
+    } else if (selectedView === "master") {
       fetchMasterStockData();
+    } else if (selectedView === "info") {
+      fetchInfoData();
     }
   }, [selectedView]);
 
@@ -129,6 +135,17 @@ export default function StockPage() {
       updateFilterOptions(result.data || []);
     } catch (error) {
       console.error("Error fetching master stock data:", error);
+    }
+  };
+
+  const fetchInfoData = async () => {
+    try {
+      const response = await fetch("/api/stock/info");
+      const result = await response.json();
+      setInfoData(result.data || []);
+      updateFilterOptions(result.data || []);
+    } catch (error) {
+      console.error("Error fetching info data:", error);
     }
   };
 
@@ -213,6 +230,15 @@ export default function StockPage() {
             `Import ${type} gagal: ` + (result.error || "Unknown error"),
           );
         }
+      }
+
+      // CRITICAL: Copy stock to yesterday after successful import
+      const copyResponse = await fetch("/api/stock/copy-to-yesterday", {
+        method: "POST",
+      });
+
+      if (!copyResponse.ok) {
+        console.error("Failed to copy stock to yesterday");
       }
 
       alert(`Import berhasil! ${filesToImport.length} file diimport.`);
@@ -367,11 +393,9 @@ export default function StockPage() {
   const handleDownloadBarcode = () => {
     if (!barcodeRef.current) return;
 
-    // Ambil QR Code canvas
     const qrCanvas = barcodeRef.current.querySelector("canvas");
     if (!qrCanvas) return;
 
-    // Create final canvas dengan ukuran label
     const canvas = document.createElement("canvas");
     const dpi = 300;
     const widthCm = 3.5;
@@ -384,25 +408,21 @@ export default function StockPage() {
 
     const ctx = canvas.getContext("2d");
 
-    // White background
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, widthPx, heightPx);
 
-    // Draw outer border (KOTAK)
     ctx.strokeStyle = "black";
     ctx.lineWidth = 4;
     ctx.strokeRect(5, 5, widthPx - 10, heightPx - 10);
 
     const padding = 25;
 
-    // Left side - Quarter & Year
     ctx.fillStyle = "black";
     ctx.font = "bold 28px Arial";
     ctx.textAlign = "left";
     ctx.fillText(selectedItemForBarcode.quarter, padding, padding + 35);
     ctx.fillText(selectedItemForBarcode.year, padding, padding + 70);
 
-    // Right side - SKU, Product Name, HPJ
     const rightX = widthPx - padding;
     const lineHeight = 26;
     let currentY = padding + 25;
@@ -423,12 +443,10 @@ export default function StockPage() {
     ctx.font = "bold 15px Arial";
     ctx.fillText(selectedItemForBarcode.HPJ, rightX, currentY);
 
-    // Bottom - QR Code (KOTAK PERSEGI seperti QRIS)
-    const qrSize = 120; // Ukuran QR Code
-    const qrX = (widthPx - qrSize) / 2; // Center horizontal
-    const qrY = heightPx - qrSize - 20; // 20px dari bawah
+    const qrSize = 120;
+    const qrX = (widthPx - qrSize) / 2;
+    const qrY = heightPx - qrSize - 20;
 
-    // Draw QR Code
     ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
 
     canvas.toBlob((blob) => {
@@ -451,6 +469,7 @@ export default function StockPage() {
       hpj: "all",
       search: "",
     });
+    setLabelFilter("all");
     setCurrentPage(1);
   };
 
@@ -469,10 +488,43 @@ export default function StockPage() {
     }
   };
 
-  const currentData = selectedView === "stock" ? stockData : masterStockData;
+  // Helper function to get label
+  const getStockLabel = (item) => {
+    const pca = parseFloat(item.PCA) || 0;
+    const pcaYesterday = parseFloat(item.PCA_Yesterday) || 0;
+
+    if (pca === 0) {
+      return "OOS";
+    }
+
+    if (pca < 3 && pcaYesterday < 3) {
+      return "LOW STOCK";
+    }
+
+    if (pca - pcaYesterday >= 50) {
+      return "RESTOCK";
+    }
+
+    return "-";
+  };
+
+  const currentData = 
+    selectedView === "stock" ? stockData : 
+    selectedView === "master" ? masterStockData : 
+    infoData;
 
   const filteredData = currentData
     .filter((item) => {
+      // CRITICAL: For Info view, only show items with labels
+      if (selectedView === "info") {
+        const label = item.Label || "";
+        // Skip items without labels
+        if (!label || label === "") return false;
+        
+        // Apply label filter if not "all"
+        if (labelFilter !== "all" && label !== labelFilter) return false;
+      }
+
       if (filters.category !== "all" && item.Category !== filters.category)
         return false;
       if (filters.grade !== "all" && item.Grade !== filters.grade) return false;
@@ -481,7 +533,8 @@ export default function StockPage() {
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
         const sku = String(item.SKU || "").toLowerCase();
-        const productName = String(item.Product_name || "").toLowerCase();
+        // For Info view, use Item_Name, for others use Product_name
+        const productName = String(item.Item_Name || item.Product_name || "").toLowerCase();
         if (!sku.includes(searchLower) && !productName.includes(searchLower))
           return false;
       }
@@ -489,6 +542,25 @@ export default function StockPage() {
       return true;
     })
     .sort((a, b) => {
+      // Special sorting for Info view - prioritize by label
+      if (selectedView === "info") {
+        const labelPriority = {
+          "OOS": 1,
+          "LOW STOCK": 2,
+          "RESTOCK": 3,
+          "": 4
+        };
+        
+        const labelA = labelPriority[a.Label || ""] || 4;
+        const labelB = labelPriority[b.Label || ""] || 4;
+        
+        if (labelA !== labelB) return labelA - labelB;
+        
+        // Then sort by SKU
+        return String(a.SKU || "").localeCompare(String(b.SKU || ""));
+      }
+
+      // Default sorting for Stock and Master views
       const gradeCompare = String(a.Grade || "").localeCompare(
         String(b.Grade || ""),
       );
@@ -507,6 +579,7 @@ export default function StockPage() {
   const canViewStock = permissions.stock;
   const canViewMaster = permissions.stock;
   const canManageMaster = permissions.registrations;
+
   return (
     <div>
       <Header title="Stock Management" />
@@ -520,7 +593,7 @@ export default function StockPage() {
                 onClick={openImportModal}
                 className="btn-primary text-sm px-4 py-2"
               >
-                📥 Import Data
+                Import Data
               </button>
             )}
             <button
@@ -528,7 +601,7 @@ export default function StockPage() {
               disabled={exporting}
               className="btn-secondary text-sm px-4 py-2 disabled:opacity-50"
             >
-              {exporting ? "Exporting..." : "📤 Export Stock"}
+              {exporting ? "Exporting..." : "Export Stock"}
             </button>
           </div>
 
@@ -563,7 +636,7 @@ export default function StockPage() {
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
-                📦 Stock
+                Stock
               </button>
               {canViewMaster && (
                 <button
@@ -578,9 +651,23 @@ export default function StockPage() {
                       : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                   }`}
                 >
-                  🔧 Master Stock
+                  Master Stock
                 </button>
               )}
+              <button
+                onClick={() => {
+                  setSelectedView("info");
+                  setCurrentPage(1);
+                  setShowMasterForm(false);
+                }}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  selectedView === "info"
+                    ? "bg-accent text-primary shadow-lg"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                Info
+              </button>
             </div>
           </div>
 
@@ -595,7 +682,6 @@ export default function StockPage() {
       {selectedView === "master" && !canManageMaster && (
         <div className="card p-4 mb-6 bg-blue-50 border-2 border-blue-200">
           <div className="flex items-start gap-3">
-            <span className="text-2xl">ℹ️</span>
             <div>
               <h3 className="font-semibold text-blue-800 mb-1">
                 View Only Mode
@@ -615,8 +701,8 @@ export default function StockPage() {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-bold text-primary">
               {editingMaster
-                ? "✏️ Edit Master Stock"
-                : "➕ Add New Master Stock"}
+                ? "Edit Master Stock"
+                : "Add New Master Stock"}
             </h3>
             <button
               onClick={() => {
@@ -766,7 +852,7 @@ export default function StockPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-semibold text-primary mb-1">
               Category
@@ -821,6 +907,24 @@ export default function StockPage() {
             </select>
           </div>
 
+          {selectedView === "info" && (
+            <div>
+              <label className="block text-xs font-semibold text-primary mb-1">
+                Label
+              </label>
+              <select
+                value={labelFilter}
+                onChange={(e) => setLabelFilter(e.target.value)}
+                className="input-field text-sm py-2"
+              >
+                <option value="all">All Labels</option>
+                <option value="OOS">OOS</option>
+                <option value="LOW STOCK">LOW STOCK</option>
+                <option value="RESTOCK">RESTOCK</option>
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-primary mb-1">
               Search
@@ -863,19 +967,22 @@ export default function StockPage() {
           </div>
         </div>
       </div>
+
       {/* Data Table */}
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-gray-200">
           <h2 className="text-lg font-bold text-primary">
             {selectedView === "stock"
-              ? "📦 Stock Data"
-              : "🔧 Master Stock Data"}
+              ? "Stock Data"
+              : selectedView === "master"
+              ? "Master Stock Data"
+              : "Stock Comparison Info"}
           </h2>
-          <p className="text-xs text-gray-600 mt-1">
-            {selectedView === "stock"
-              ? "Data from stock sheet - Sorted by Grade (A-Z), then PCA (High to Low)"
-              : `Master data untuk SKU, Product, Category, Grade, HPP, HPJ ${!canManageMaster ? "(View Only)" : ""}`}
-          </p>
+          {selectedView === "stock" && (
+            <p className="text-xs text-gray-600 mt-1">
+              Data from stock sheet - Sorted by Grade (A-Z), then PCA (High to Low)
+            </p>
+          )}
         </div>
 
         {paginatedData.length === 0 ? (
@@ -895,16 +1002,21 @@ export default function StockPage() {
               <table className="w-full text-xs">
                 <thead className="bg-primary text-white">
                   <tr>
+                    <th className="px-2 py-2 text-center font-semibold">Image</th>
                     <th className="px-2 py-2 text-center font-semibold">SKU</th>
                     <th className="px-2 py-2 text-center font-semibold">
                       Product Name
                     </th>
-                    <th className="px-2 py-2 text-center font-semibold">
-                      Category
-                    </th>
-                    <th className="px-2 py-2 text-center font-semibold">
-                      Grade
-                    </th>
+                    {selectedView !== "info" && (
+                      <th className="px-2 py-2 text-center font-semibold">
+                        Category
+                      </th>
+                    )}
+                    {selectedView !== "info" && (
+                      <th className="px-2 py-2 text-center font-semibold">
+                        Grade
+                      </th>
+                    )}
                     {selectedView === "stock" && (
                       <>
                         <th className="px-2 py-2 text-center font-semibold">
@@ -929,7 +1041,22 @@ export default function StockPage() {
                         HPP
                       </th>
                     )}
-                    <th className="px-2 py-2 text-center font-semibold">HPJ</th>
+                    {selectedView === "info" && (
+                      <>
+                        <th className="px-2 py-2 text-center font-semibold">
+                          PCA
+                        </th>
+                        <th className="px-2 py-2 text-center font-semibold">
+                          PCA Yesterday
+                        </th>
+                        <th className="px-2 py-2 text-center font-semibold">
+                          Label
+                        </th>
+                      </>
+                    )}
+                    {selectedView !== "info" && (
+                      <th className="px-2 py-2 text-center font-semibold">HPJ</th>
+                    )}
                     {selectedView === "master" && (
                       <th className="px-2 py-2 text-center font-semibold">
                         Actions
@@ -938,74 +1065,123 @@ export default function StockPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedData.map((item, index) => (
-                    <tr
-                      key={index}
-                      className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
-                    >
-                      <td className="px-2 text-center py-2 font-medium">
-                        {item.SKU}
-                      </td>
-                      <td className="px-2 py-2">{item.Product_name}</td>
-                      <td className="px-2 text-center py-2">{item.Category}</td>
-                      <td className="px-2 py-2 text-center">
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
-                          {item.Grade}
-                        </span>
-                      </td>
-                      {selectedView === "stock" && (
-                        <>
-                          <td className="px-2 py-2 text-center font-semibold">
-                            {item.PCA}
-                          </td>
-                          <td className="px-2 py-2 text-center">
-                            {item.Shopify}
-                          </td>
-                          <td className="px-2 py-2 text-center">
-                            {item.Threshold}
-                          </td>
-                          <td className="px-2 py-2 text-center">{item.HPP}</td>
-                          <td className="px-2 py-2 text-center">{item.HPT}</td>
-                        </>
-                      )}
-                      {selectedView === "master" && (
-                        <td className="px-2 py-2 text-center">{item.HPP}</td>
-                      )}
-                      <td className="px-2 py-2 text-center font-semibold text-green-700">
-                        {item.HPJ}
-                      </td>
-                      {selectedView === "master" && (
+                  {paginatedData.map((item, index) => {
+                    // For info view, use Label from API, otherwise calculate
+                    const label = selectedView === "info" ? (item.Label || "") : getStockLabel(item);
+                    const labelColor = 
+                      label === "OOS" ? "bg-red-100 text-red-800" :
+                      label === "LOW STOCK" ? "bg-yellow-100 text-yellow-800" :
+                      label === "RESTOCK" ? "bg-green-100 text-green-800" :
+                      "";
+
+                    return (
+                      <tr
+                        key={index}
+                        className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
+                      >
                         <td className="px-2 py-2 text-center">
-                          <div className="flex gap-1 justify-center">
-                            <button
-                              onClick={() => openBarcodeModal(item)}
-                              className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700"
-                            >
-                              🏷️ View
-                            </button>
-                            {canManageMaster && (
-                              <>
-                                <button
-                                  onClick={() => handleEdit(item)}
-                                  className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleDeleteMaster(item.rowIndex)
-                                  }
-                                  className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
-                                >
-                                  Del
-                                </button>
-                              </>
-                            )}
-                          </div>
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt={item.Item_Name || item.Product_name}
+                              className="w-12 h-12 object-contain mx-auto rounded"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center mx-auto">
+                              <span className="text-gray-400 text-xs">No img</span>
+                            </div>
+                          )}
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td className="px-2 text-center py-2 font-medium">
+                          {item.SKU}
+                        </td>
+                        <td className="px-2 py-2">
+                          {selectedView === "info" ? item.Item_Name : item.Product_name}
+                        </td>
+                        {selectedView !== "info" && (
+                          <td className="px-2 text-center py-2">{item.Category}</td>
+                        )}
+                        {selectedView !== "info" && (
+                          <td className="px-2 py-2 text-center">
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                              {item.Grade}
+                            </span>
+                          </td>
+                        )}
+                        {selectedView === "stock" && (
+                          <>
+                            <td className="px-2 py-2 text-center font-semibold">
+                              {item.PCA}
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              {item.Shopify}
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              {item.Threshold}
+                            </td>
+                            <td className="px-2 py-2 text-center">{item.HPP}</td>
+                            <td className="px-2 py-2 text-center">{item.HPT}</td>
+                          </>
+                        )}
+                        {selectedView === "master" && (
+                          <td className="px-2 py-2 text-center">{item.HPP}</td>
+                        )}
+                        {selectedView === "info" && (
+                          <>
+                            <td className="px-2 py-2 text-center font-semibold">
+                              {item.PCA}
+                            </td>
+                            <td className="px-2 py-2 text-center font-semibold">
+                              {item.PCA_Yesterday}
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded text-xs font-semibold ${labelColor}`}>
+                                {label}
+                              </span>
+                            </td>
+                          </>
+                        )}
+                        {selectedView !== "info" && (
+                          <td className="px-2 py-2 text-center font-semibold text-green-700">
+                            {item.HPJ}
+                          </td>
+                        )}
+                        {selectedView === "master" && (
+                          <td className="px-2 py-2 text-center">
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={() => openBarcodeModal(item)}
+                                className="bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700"
+                              >
+                                View
+                              </button>
+                              {canManageMaster && (
+                                <>
+                                  <button
+                                    onClick={() => handleEdit(item)}
+                                    className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleDeleteMaster(item.rowIndex)
+                                    }
+                                    className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+                                  >
+                                    Del
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1088,7 +1264,6 @@ export default function StockPage() {
             </div>
 
             <div className="p-6">
-              {/* Product Image */}
               {selectedItemForBarcode.image_url && (
                 <div className="mb-4 flex justify-center">
                   <img
@@ -1102,7 +1277,6 @@ export default function StockPage() {
                 </div>
               )}
 
-              {/* Product Info */}
               <div className="mb-4 space-y-2">
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="text-sm font-semibold text-gray-600">
@@ -1130,16 +1304,13 @@ export default function StockPage() {
                 </div>
               </div>
 
-              {/* QR Code Preview dengan Border KOTAK */}
               <div
                 className="bg-white border-4 border-gray-800 rounded p-3 mb-4"
                 style={{ width: "350px", height: "200px", margin: "0 auto" }}
                 ref={barcodeRef}
               >
                 <div className="h-full flex flex-col justify-between">
-                  {/* Top Section - Quarter/Year di kiri, Info di kanan */}
                   <div className="flex justify-between items-start">
-                    {/* Left - Quarter & Year */}
                     <div className="text-left">
                       <div className="text-xs font-bold text-gray-800">
                         {selectedItemForBarcode.quarter}
@@ -1149,7 +1320,6 @@ export default function StockPage() {
                       </div>
                     </div>
 
-                    {/* Right - SKU, Product, Price */}
                     <div className="text-center">
                       <div className="text-xs font-bold text-gray-800">
                         {selectedItemForBarcode.SKU}
@@ -1171,7 +1341,6 @@ export default function StockPage() {
                     </div>
                   </div>
 
-                  {/* Bottom Section - QR Code (KOTAK PERSEGI seperti QRIS) */}
                   <div className="flex justify-left items-end pb-2">
                     <QRCodeCanvas
                       value={selectedItemForBarcode.SKU}
@@ -1183,7 +1352,6 @@ export default function StockPage() {
                 </div>
               </div>
 
-              {/* Download Button */}
               <button
                 onClick={handleDownloadBarcode}
                 className="btn-primary w-full"
@@ -1213,7 +1381,7 @@ export default function StockPage() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-primary mb-2">
-                  📦 Shopify Data
+                  Shopify Data
                 </label>
                 <input
                   type="file"
@@ -1223,14 +1391,14 @@ export default function StockPage() {
                 />
                 {importFiles.shopify && (
                   <p className="text-xs text-green-600 mt-1">
-                    ✓ {importFiles.shopify.name}
+                    {importFiles.shopify.name}
                   </p>
                 )}
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-primary mb-2">
-                  🎯 Javelin Data
+                  Javelin Data
                 </label>
                 <input
                   type="file"
@@ -1240,14 +1408,14 @@ export default function StockPage() {
                 />
                 {importFiles.javelin && (
                   <p className="text-xs text-green-600 mt-1">
-                    ✓ {importFiles.javelin.name}
+                    {importFiles.javelin.name}
                   </p>
                 )}
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-primary mb-2">
-                  ⚡ Threshold Data
+                  Threshold Data
                 </label>
                 <input
                   type="file"
@@ -1257,15 +1425,15 @@ export default function StockPage() {
                 />
                 {importFiles.threshold && (
                   <p className="text-xs text-green-600 mt-1">
-                    ✓ {importFiles.threshold.name}
+                    {importFiles.threshold.name}
                   </p>
                 )}
               </div>
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <p className="text-xs text-yellow-800">
-                  <strong>⚠️ Warning:</strong> Data lama di sheet akan dihapus
-                  dan diganti dengan data baru.
+                  <strong>Warning:</strong> Data lama di sheet akan dihapus
+                  dan diganti dengan data baru. Stock akan otomatis dicopy ke stock_yesterday.
                 </p>
               </div>
 
