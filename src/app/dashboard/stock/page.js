@@ -232,19 +232,17 @@ export default function StockPage() {
         }
       }
 
-      // CRITICAL: Copy stock to yesterday after successful import
-      const copyResponse = await fetch("/api/stock/copy-to-yesterday", {
-        method: "POST",
-      });
-
-      if (!copyResponse.ok) {
-        console.error("Failed to copy stock to yesterday");
-      }
-
       alert(`Import berhasil! ${filesToImport.length} file diimport.`);
       setShowImportModal(false);
       setImportFiles({ shopify: null, javelin: null, threshold: null });
-      fetchStockData();
+      
+      // Refresh data based on current view
+      if (selectedView === "stock") {
+        fetchStockData();
+      } else if (selectedView === "info") {
+        fetchInfoData();
+      }
+      
       fetchLastUpdate();
     } catch (error) {
       console.error("Error importing:", error);
@@ -488,26 +486,6 @@ export default function StockPage() {
     }
   };
 
-  // Helper function to get label
-  const getStockLabel = (item) => {
-    const pca = parseFloat(item.PCA) || 0;
-    const pcaYesterday = parseFloat(item.PCA_Yesterday) || 0;
-
-    if (pca === 0) {
-      return "OOS";
-    }
-
-    if (pca < 3 && pcaYesterday < 3) {
-      return "LOW STOCK";
-    }
-
-    if (pca - pcaYesterday >= 50) {
-      return "RESTOCK";
-    }
-
-    return "-";
-  };
-
   const currentData = 
     selectedView === "stock" ? stockData : 
     selectedView === "master" ? masterStockData : 
@@ -532,11 +510,16 @@ export default function StockPage() {
 
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        const sku = String(item.SKU || "").toLowerCase();
-        // For Info view, use Item_Name, for others use Product_name
-        const productName = String(item.Item_Name || item.Product_name || "").toLowerCase();
-        if (!sku.includes(searchLower) && !productName.includes(searchLower))
+        const sku = String(item.SKU || item.Product_ID || "").toLowerCase();
+        const productId = String(item.Product_ID || "").toLowerCase();
+        // For Info view, use Description, for others use Product_name
+        const productName = String(item.Description || item.Product_name || "").toLowerCase();
+        
+        if (!sku.includes(searchLower) && 
+            !productName.includes(searchLower) && 
+            !productId.includes(searchLower)) {
           return false;
+        }
       }
 
       return true;
@@ -556,8 +539,8 @@ export default function StockPage() {
         
         if (labelA !== labelB) return labelA - labelB;
         
-        // Then sort by SKU
-        return String(a.SKU || "").localeCompare(String(b.SKU || ""));
+        // Then sort by Product_ID
+        return String(a.Product_ID || a.SKU || "").localeCompare(String(b.Product_ID || b.SKU || ""));
       }
 
       // Default sorting for Stock and Master views
@@ -853,59 +836,63 @@ export default function StockPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-primary mb-1">
-              Category
-            </label>
-            <select
-              value={filters.category}
-              onChange={(e) => handleFilterChange("category", e.target.value)}
-              className="input-field text-sm py-2"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-          </div>
+          {selectedView !== "info" && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-primary mb-1">
+                  Category
+                </label>
+                <select
+                  value={filters.category}
+                  onChange={(e) => handleFilterChange("category", e.target.value)}
+                  className="input-field text-sm py-2"
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-primary mb-1">
-              Grade
-            </label>
-            <select
-              value={filters.grade}
-              onChange={(e) => handleFilterChange("grade", e.target.value)}
-              className="input-field text-sm py-2"
-            >
-              <option value="all">All Grades</option>
-              {grades.map((grade) => (
-                <option key={grade} value={grade}>
-                  {grade}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-xs font-semibold text-primary mb-1">
+                  Grade
+                </label>
+                <select
+                  value={filters.grade}
+                  onChange={(e) => handleFilterChange("grade", e.target.value)}
+                  className="input-field text-sm py-2"
+                >
+                  <option value="all">All Grades</option>
+                  {grades.map((grade) => (
+                    <option key={grade} value={grade}>
+                      {grade}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-primary mb-1">
-              HPJ
-            </label>
-            <select
-              value={filters.hpj}
-              onChange={(e) => handleFilterChange("hpj", e.target.value)}
-              className="input-field text-sm py-2"
-            >
-              <option value="all">All HPJ</option>
-              {hpjValues.map((hpj) => (
-                <option key={hpj} value={hpj}>
-                  {hpj}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-xs font-semibold text-primary mb-1">
+                  HPJ
+                </label>
+                <select
+                  value={filters.hpj}
+                  onChange={(e) => handleFilterChange("hpj", e.target.value)}
+                  className="input-field text-sm py-2"
+                >
+                  <option value="all">All HPJ</option>
+                  {hpjValues.map((hpj) => (
+                    <option key={hpj} value={hpj}>
+                      {hpj}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
 
           {selectedView === "info" && (
             <div>
@@ -914,7 +901,10 @@ export default function StockPage() {
               </label>
               <select
                 value={labelFilter}
-                onChange={(e) => setLabelFilter(e.target.value)}
+                onChange={(e) => {
+                  setLabelFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="input-field text-sm py-2"
               >
                 <option value="all">All Labels</option>
@@ -933,7 +923,7 @@ export default function StockPage() {
               type="text"
               value={filters.search}
               onChange={(e) => handleFilterChange("search", e.target.value)}
-              placeholder="SKU atau Product Name"
+              placeholder={selectedView === "info" ? "Product ID atau Description" : "SKU atau Product Name"}
               className="input-field text-sm py-2"
             />
           </div>
@@ -983,6 +973,11 @@ export default function StockPage() {
               Data from stock sheet - Sorted by Grade (A-Z), then PCA (High to Low)
             </p>
           )}
+          {selectedView === "info" && (
+            <p className="text-xs text-gray-600 mt-1">
+              Comparing Javelin data (today) vs Stock Yesterday - Only showing items with labels
+            </p>
+          )}
         </div>
 
         {paginatedData.length === 0 ? (
@@ -993,6 +988,8 @@ export default function StockPage() {
             <p className="text-sm text-gray-500">
               {selectedView === "master" && canManageMaster
                 ? 'Click "Add New Master Stock" to add data'
+                : selectedView === "info"
+                ? "No items with labels found. Import Javelin data to see comparison."
                 : "Try adjusting your filters or import data"}
             </p>
           </div>
@@ -1002,20 +999,24 @@ export default function StockPage() {
               <table className="w-full text-xs">
                 <thead className="bg-primary text-white">
                   <tr>
-                    <th className="px-2 py-2 text-center font-semibold">Image</th>
-                    <th className="px-2 py-2 text-center font-semibold">SKU</th>
+                    {selectedView === "info" && (
+                      <th className="px-2 py-2 text-center font-semibold">Image</th>
+                    )}
                     <th className="px-2 py-2 text-center font-semibold">
-                      Product Name
+                      {selectedView === "info" ? "Product ID" : "SKU"}
+                    </th>
+                    <th className="px-2 py-2 text-center font-semibold">
+                      {selectedView === "info" ? "Description" : "Product Name"}
                     </th>
                     {selectedView !== "info" && (
-                      <th className="px-2 py-2 text-center font-semibold">
-                        Category
-                      </th>
-                    )}
-                    {selectedView !== "info" && (
-                      <th className="px-2 py-2 text-center font-semibold">
-                        Grade
-                      </th>
+                      <>
+                        <th className="px-2 py-2 text-center font-semibold">
+                          Category
+                        </th>
+                        <th className="px-2 py-2 text-center font-semibold">
+                          Grade
+                        </th>
+                      </>
                     )}
                     {selectedView === "stock" && (
                       <>
@@ -1044,10 +1045,10 @@ export default function StockPage() {
                     {selectedView === "info" && (
                       <>
                         <th className="px-2 py-2 text-center font-semibold">
-                          PCA
+                          PCA Yesterday
                         </th>
                         <th className="px-2 py-2 text-center font-semibold">
-                          PCA Yesterday
+                          PCA Today
                         </th>
                         <th className="px-2 py-2 text-center font-semibold">
                           Label
@@ -1066,8 +1067,7 @@ export default function StockPage() {
                 </thead>
                 <tbody>
                   {paginatedData.map((item, index) => {
-                    // For info view, use Label from API, otherwise calculate
-                    const label = selectedView === "info" ? (item.Label || "") : getStockLabel(item);
+                    const label = item.Label || "";
                     const labelColor = 
                       label === "OOS" ? "bg-red-100 text-red-800" :
                       label === "LOW STOCK" ? "bg-yellow-100 text-yellow-800" :
@@ -1079,37 +1079,39 @@ export default function StockPage() {
                         key={index}
                         className="border-b border-gray-200 hover:bg-accent/5 transition-colors"
                       >
-                        <td className="px-2 py-2 text-center">
-                          {item.image_url ? (
-                            <img
-                              src={item.image_url}
-                              alt={item.Item_Name || item.Product_name}
-                              className="w-12 h-12 object-contain mx-auto rounded"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center mx-auto">
-                              <span className="text-gray-400 text-xs">No img</span>
-                            </div>
-                          )}
-                        </td>
+                        {selectedView === "info" && (
+                          <td className="px-2 py-2 text-center">
+                            {item.image_url ? (
+                              <img
+                                src={item.image_url}
+                                alt={item.Description}
+                                className="w-12 h-12 object-contain mx-auto rounded"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center mx-auto">
+                                <span className="text-gray-400 text-xs">No img</span>
+                              </div>
+                            )}
+                          </td>
+                        )}
                         <td className="px-2 text-center py-2 font-medium">
-                          {item.SKU}
+                          {selectedView === "info" ? item.Product_ID : item.SKU}
                         </td>
                         <td className="px-2 py-2">
-                          {selectedView === "info" ? item.Item_Name : item.Product_name}
+                          {selectedView === "info" ? item.Description : item.Product_name}
                         </td>
                         {selectedView !== "info" && (
-                          <td className="px-2 text-center py-2">{item.Category}</td>
-                        )}
-                        {selectedView !== "info" && (
-                          <td className="px-2 py-2 text-center">
-                            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
-                              {item.Grade}
-                            </span>
-                          </td>
+                          <>
+                            <td className="px-2 text-center py-2">{item.Category}</td>
+                            <td className="px-2 py-2 text-center">
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                                {item.Grade}
+                              </span>
+                            </td>
+                          </>
                         )}
                         {selectedView === "stock" && (
                           <>
@@ -1132,10 +1134,10 @@ export default function StockPage() {
                         {selectedView === "info" && (
                           <>
                             <td className="px-2 py-2 text-center font-semibold">
-                              {item.PCA}
+                              {item.PCA_Yesterday || 0}
                             </td>
                             <td className="px-2 py-2 text-center font-semibold">
-                              {item.PCA_Yesterday}
+                              {item.PCA || 0}
                             </td>
                             <td className="px-2 py-2 text-center">
                               <span className={`px-2 py-0.5 rounded text-xs font-semibold ${labelColor}`}>
@@ -1398,7 +1400,7 @@ export default function StockPage() {
 
               <div>
                 <label className="block text-sm font-semibold text-primary mb-2">
-                  Javelin Data
+                  Javelin Data (27 columns)
                 </label>
                 <input
                   type="file"
@@ -1411,6 +1413,9 @@ export default function StockPage() {
                     {importFiles.javelin.name}
                   </p>
                 )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Otomatis memindahkan data lama ke stock_yesterday
+                </p>
               </div>
 
               <div>
@@ -1433,7 +1438,8 @@ export default function StockPage() {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <p className="text-xs text-yellow-800">
                   <strong>Warning:</strong> Data lama di sheet akan dihapus
-                  dan diganti dengan data baru. Stock akan otomatis dicopy ke stock_yesterday.
+                  dan diganti dengan data baru. Import Javelin akan otomatis
+                  memindahkan data sebelumnya ke stock_yesterday.
                 </p>
               </div>
 

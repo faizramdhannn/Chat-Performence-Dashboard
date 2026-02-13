@@ -20,6 +20,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
+    // UPDATED: Accept 'javelin' type
     if (!['shopify', 'javelin', 'threshold'].includes(type)) {
       return NextResponse.json({ error: 'Invalid import type' }, { status: 400 });
     }
@@ -53,14 +54,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'File is empty' }, { status: 400 });
     }
 
-    // Import data to the appropriate sheet
+    // CRITICAL: Import data to the appropriate sheet
+    // importToSheet will automatically move javelin to yesterday if type === 'javelin'
     console.log(`📥 Importing ${jsonData.length} rows to ${type}...`);
     const result = await googleSheets.importToSheet(type, jsonData);
     
     // Update last update timestamp
     await googleSheets.updateStockLastUpdate(type);
 
-    // Check if all three imports are done recently (within 5 minutes)
+    let message = `Successfully imported ${result.rowsImported} rows to ${type}`;
+    
+    // Special message for javelin import
+    if (type === 'javelin') {
+      message += '. Previous javelin data moved to stock_yesterday.';
+    }
+
+    // Check if all three imports are done recently (within 5 minutes) - OPTIONAL
     const lastUpdate = await googleSheets.getStockLastUpdate();
     const now = Date.now();
     const fiveMinutesAgo = now - (5 * 60 * 1000);
@@ -70,24 +79,12 @@ export async function POST(request) {
       return updateTime > fiveMinutesAgo;
     });
 
-    // If all imports done within the time window, move stock to yesterday
-    if (allImportsDone) {
-      console.log('✅ All imports done within 5 minutes, moving stock to yesterday...');
-      try {
-        await googleSheets.moveStockToYesterday();
-        console.log('✅ Stock data successfully moved to stock_yesterday');
-      } catch (moveError) {
-        console.error('❌ Error moving stock to yesterday:', moveError);
-        // Don't fail the entire import if this fails
-      }
-    }
-
     return NextResponse.json({
       success: true,
       rowsImported: result.rowsImported,
-      message: `Successfully imported ${result.rowsImported} rows to ${type}`,
+      message: message,
       allImportsDone,
-      autoMovedToYesterday: allImportsDone,
+      javelinMovedToYesterday: type === 'javelin',
     });
   } catch (error) {
     console.error('Error importing data:', error);

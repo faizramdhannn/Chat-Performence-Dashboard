@@ -1136,12 +1136,122 @@ class GoogleSheetsService {
     }
   }
 
-  // ============ STOCK YESTERDAY DATA (NEW) ============
+  // ============ JAVELIN DATA (RAW - NO AGGREGATION) ============
+  async getJavelinData() {
+    try {
+      console.log("📊 Fetching Javelin data...");
+
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: "javelin!A:AA", // 27 columns
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        console.log("⚠️  No data found in javelin sheet");
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || "";
+        });
+        return obj;
+      });
+
+      console.log(`✅ Found ${data.length} rows in javelin`);
+
+      return data;
+    } catch (error) {
+      console.error("❌ Error fetching javelin data:", error);
+      throw error;
+    }
+  }
+
+  // ============ JAVELIN YESTERDAY DATA (RAW) ============
+  async getJavelinYesterdayData() {
+    try {
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: "javelin_yesterday!A:AA", // 27 columns
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length === 0) {
+        return [];
+      }
+
+      const headers = rows[0];
+      const data = rows.slice(1).map((row, index) => {
+        const obj = { rowIndex: index + 2 };
+        headers.forEach((header, i) => {
+          obj[header] = row[i] || "";
+        });
+        return obj;
+      });
+
+      return data;
+    } catch (error) {
+      console.error("Error fetching javelin yesterday data:", error);
+      throw error;
+    }
+  }
+
+  // ============ MOVE JAVELIN TO YESTERDAY (FULL COPY) ============
+  async moveJavelinToYesterday() {
+    try {
+      console.log("📦 Moving javelin to javelin_yesterday (full copy)...");
+
+      // Get ALL data from javelin sheet (including headers)
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: "javelin!A:AA",
+      });
+
+      const allRows = response.data.values;
+      
+      if (!allRows || allRows.length === 0) {
+        console.log("⚠️  No javelin data to move");
+        return {
+          success: true,
+          rowsMoved: 0,
+        };
+      }
+
+      // Clear javelin_yesterday completely
+      await this.sheets.spreadsheets.values.clear({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: "javelin_yesterday!A:ZZ",
+      });
+
+      // Copy ALL rows (including header) to javelin_yesterday
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: this.usersSpreadsheetId,
+        range: "javelin_yesterday!A1",
+        valueInputOption: "USER_ENTERED",
+        resource: { values: allRows },
+      });
+
+      console.log(`✅ Moved ${allRows.length} rows (including header) to javelin_yesterday`);
+
+      return {
+        success: true,
+        rowsMoved: allRows.length - 1, // Exclude header from count
+      };
+    } catch (error) {
+      console.error("❌ Error moving javelin to yesterday:", error);
+      throw error;
+    }
+  }
+
+  // ============ STOCK YESTERDAY DATA (READ ONLY - EXCEL FORMULAS) ============
   async getStockYesterdayData() {
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId: this.usersSpreadsheetId,
-        range: "stock_yesterday!A:J",
+        range: "stock_yesterday!A:Z", // Flexible range for Excel formulas
       });
 
       const rows = response.data.values;
@@ -1165,121 +1275,107 @@ class GoogleSheetsService {
     }
   }
 
-  async moveStockToYesterday() {
-    try {
-      console.log("📦 Moving stock data to stock_yesterday...");
-
-      // Get current stock data
-      const stockData = await this.getStockData();
-
-      // Clear stock_yesterday (except header)
-      await this.sheets.spreadsheets.values.clear({
-        spreadsheetId: this.usersSpreadsheetId,
-        range: "stock_yesterday!A2:ZZ",
-      });
-
-      // Prepare values
-      const values = stockData.map((row) => [
-        row.SKU || "",
-        row.Product_name || "",
-        row.Category || "",
-        row.Grade || "",
-        row.PCA || "",
-        row.Shopify || "",
-        row.Threshold || "",
-        row.HPP || "",
-        row.HPT || "",
-        row.HPJ || "",
-      ]);
-
-      // Insert into stock_yesterday
-      if (values.length > 0) {
-        await this.sheets.spreadsheets.values.append({
-          spreadsheetId: this.usersSpreadsheetId,
-          range: "stock_yesterday!A2",
-          valueInputOption: "USER_ENTERED",
-          resource: { values },
-        });
-      }
-
-      console.log(`✅ Moved ${values.length} rows to stock_yesterday`);
-
-      return {
-        success: true,
-        rowsMoved: values.length,
-      };
-    } catch (error) {
-      console.error("❌ Error moving stock to yesterday:", error);
-      throw error;
-    }
-  }
-
-  // ============ STOCK INFO (COMPARISON) (NEW) ============
+  // ============ STOCK INFO (READ FROM STOCK_YESTERDAY SHEET) ============
   async getStockInfoData() {
     try {
-      const [stockData, stockYesterdayData, masterStockData] = await Promise.all([
-        this.getStockData(),
+      console.log("📊 Reading stock info from stock_yesterday sheet...");
+
+      const [stockYesterdayData, masterStockData] = await Promise.all([
         this.getStockYesterdayData(),
         this.getMasterStockData(),
       ]);
 
-      // Create a map for quick lookup
-      const yesterdayMap = {};
-      stockYesterdayData.forEach((item) => {
-        yesterdayMap[item.SKU] = parseFloat(item.PCA) || 0;
-      });
-
+      // Create master stock map for image URLs
       const masterStockMap = {};
       masterStockData.forEach((item) => {
-        masterStockMap[item.SKU] = item.image_url || "";
+        masterStockMap[item.SKU] = {
+          image_url: item.image_url || "",
+          Product_name: item.Product_name || "",
+        };
       });
 
-      // Build info data
-      const infoData = stockData.map((item) => {
-        const pcaToday = parseFloat(item.PCA) || 0;
-        const pcaYesterday = yesterdayMap[item.SKU] || 0;
+      // Map stock_yesterday data to info format
+      const infoData = stockYesterdayData.map((item) => {
+        const productId = item.Product_ID || item.product_id || "";
+        const pcaToday = parseFloat(item.PCA_Today || item.pca_today || item.Stock_Today || 0);
+        const pcaYesterday = parseFloat(item.PCA_Yesterday || item.pca_yesterday || item.Stock_Yesterday || 0);
         const difference = pcaToday - pcaYesterday;
-        const imageUrl = masterStockMap[item.SKU] || "";
+
+        // Try to find matching master stock item
+        let masterItem = masterStockMap[productId];
+        
+        // If not found, try to match by product name (fallback)
+        if (!masterItem) {
+          const description = item.Description || item.description || "";
+          const matchingMaster = Object.values(masterStockMap).find(
+            (m) => m.Product_name === description
+          );
+          masterItem = matchingMaster || { image_url: "", Product_name: "" };
+        }
 
         let label = "";
         
-        // Determine label
-        if (pcaToday === 0) {
-          label = "OOS";
-        } else if (pcaToday < 3 && pcaYesterday < 3) {
-          label = "LOW STOCK";
-        } else if (difference >= 50) {
-          label = "RESTOCK";
+        // Check if Label exists in sheet (from Excel formula)
+        if (item.Label) {
+          label = item.Label;
+        } else {
+          // Fallback: Calculate label in code
+          if (pcaToday === 0) {
+            label = "OOS";
+          } else if (pcaToday < 3 && pcaYesterday < 3) {
+            label = "LOW STOCK";
+          } else if (difference >= 50) {
+            label = "RESTOCK";
+          }
         }
 
         return {
-          SKU: item.SKU,
-          Item_Name: item.Product_name,
+          SKU: productId,
+          Product_ID: productId,
+          Description: item.Description || item.description || "",
           PCA: pcaToday,
           PCA_Yesterday: pcaYesterday,
           Difference: difference,
           Label: label,
-          image_url: imageUrl,
+          image_url: masterItem.image_url,
         };
       });
 
+      console.log(`✅ Built ${infoData.length} stock info records`);
+
       return infoData;
     } catch (error) {
-      console.error("Error fetching stock info data:", error);
+      console.error("❌ Error fetching stock info data:", error);
       throw error;
     }
   }
 
-  // ============ STOCK IMPORT (CRITICAL FIX: Protected sheets validation) ============
+  // ============ IMPORT TO SHEET (WITH AUTO-MOVE FOR JAVELIN) ============
   async importToSheet(sheetName, data) {
     try {
       // CRITICAL: Protect critical sheets from accidental import
-      const protectedSheets = ['users', process.env.USERS_SHEET, 'registrations', 'notes', 'stock', 'stock_yesterday', 'master-stock'];
+      const protectedSheets = [
+        'users', 
+        process.env.USERS_SHEET, 
+        'registrations', 
+        'notes', 
+        'stock', 
+        'stock_yesterday', // PROTECTED - Excel formulas only
+        'javelin_yesterday', // PROTECTED - Auto-managed
+        'master-stock'
+      ];
+      
       if (protectedSheets.includes(sheetName)) {
         throw new Error(`❌ Cannot import to protected sheet: ${sheetName}`);
       }
 
       console.log(`📥 Importing ${data.length} rows to sheet "${sheetName}"`);
+
+      // CRITICAL: Auto-move javelin data to yesterday BEFORE import
+      if (sheetName === 'javelin') {
+        console.log("🔄 Auto-moving current javelin to javelin_yesterday...");
+        await this.moveJavelinToYesterday();
+      }
 
       // Clear existing data (except header)
       await this.sheets.spreadsheets.values.clear({
@@ -1307,6 +1403,7 @@ class GoogleSheetsService {
       return {
         rowsImported: values.length,
         response: response.data,
+        movedToYesterday: sheetName === 'javelin',
       };
     } catch (error) {
       console.error("❌ Error importing to sheet:", error);

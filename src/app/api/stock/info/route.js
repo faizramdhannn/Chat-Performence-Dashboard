@@ -1,3 +1,5 @@
+// UPDATED: src/app/api/stock/info/route.js
+
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -11,7 +13,9 @@ export async function GET(request) {
   }
 
   try {
+    // Fetch info data (compares javelin vs stock_yesterday)
     const data = await googleSheets.getStockInfoData();
+    
     return NextResponse.json({ data });
   } catch (error) {
     console.error('Error fetching stock info data:', error);
